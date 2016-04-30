@@ -46,6 +46,9 @@ typedef struct
 
 	IDXGISurface * surface;
 
+	ID2D1RenderTarget * rt;
+	ID2D1SolidColorBrush * solid_brush;
+
 } dwrite_t;
 
 dwrite_t dw;
@@ -196,6 +199,41 @@ int nf_init()
 		return -1;
 	}
 */
+
+	float dpi_x, dpi_y;
+	dw.d2d_factory->GetDesktopDpi(&dpi_x, &dpi_y);
+
+	D2D1_RENDER_TARGET_PROPERTIES props;
+	props.dpiX = dpi_x;
+	props.dpiY = dpi_y;
+	props.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
+	props.pixelFormat.format = DXGI_FORMAT_UNKNOWN;
+	props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
+	props.type = D2D1_RENDER_TARGET_TYPE_HARDWARE;
+	props.usage = D2D1_RENDER_TARGET_USAGE_NONE;
+
+
+
+	if(FAILED(hr = dw.d2d_factory->CreateDxgiSurfaceRenderTarget(dw.surface, props, &dw.rt)))
+	{
+		_com_error err(hr);
+		LPCTSTR errMsg = err.ErrorMessage();
+
+		printf("failed2 %s\n", errMsg);
+		return -1;
+	}
+
+
+	if(FAILED(hr = dw.rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &dw.solid_brush)))
+	{
+		printf("failed to create d2d brush");
+		return -1;
+	}
+
+	//dw.rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+	dw.rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+
+
 	return 0;
 }
 
@@ -270,62 +308,13 @@ int nf_draw(Tigr * bitmap, const char * text)
 	}
 	*/
 
-	float dpi_x, dpi_y;
-	dw.d2d_factory->GetDesktopDpi(&dpi_x, &dpi_y);
-
-
-	D2D1_RENDER_TARGET_PROPERTIES props;
-
-	dpi_x = 96.0f;
-	dpi_y = 96.0f;
-
-	props.dpiX = dpi_x;
-	props.dpiY = dpi_y;
-	props.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
-	props.pixelFormat.format = DXGI_FORMAT_UNKNOWN; //DXGI_FORMAT_B8G8R8A8_UNORM;
-	props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;//D2D1_ALPHA_MODE_PREMULTIPLIED;
-	props.type = D2D1_RENDER_TARGET_TYPE_DEFAULT; // hardware?
-	props.usage = D2D1_RENDER_TARGET_USAGE_NONE;
-
-
-	ID2D1RenderTarget * rt;
-
-	if(FAILED(hr = dw.d2d_factory->CreateDxgiSurfaceRenderTarget(dw.surface, props, &rt)))
-	{
-		_com_error err(hr);
-		LPCTSTR errMsg = err.ErrorMessage();
-
-		printf("failed2 %s\n", errMsg);
-		return -1;
-	}
-
-
-	ID2D1SolidColorBrush * solid_brush;
-	if(FAILED(hr = rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &solid_brush)))
-	{
-		printf("failed to create d2d brush");
-		return -1;
-	}
-
-	//rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
-	rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-
-	rt->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
-
-
-	IDWriteRenderingParams * params;
-	rt->GetTextRenderingParams(&params);
-
-	if(params)
-	{
-		int a = params->GetRenderingMode();
-		printf("wut %i\n", a);
-		//rt->SetTextRenderingParams(
-	}
 
 	//params->
 	//rt->SetTextRenderingParams(params);
-	rt->BeginDraw();
+	dw.rt->BeginDraw();
+
+	//dw.rt->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+	dw.rt->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
 
 	size_t len = strlen(text) + 1;
 	WCHAR * wtext = (WCHAR*)alloca(len * sizeof(WCHAR));
@@ -337,19 +326,18 @@ int nf_draw(Tigr * bitmap, const char * text)
 	}
 
 	D2D1_RECT_F rect = {0.0f, 0.0f, (float)bitmap->w, (float)bitmap->h};
-	rt->DrawTextA(wtext, res, dw.format, rect, solid_brush);
+	dw.rt->DrawTextA(wtext, res, dw.format, rect, dw.solid_brush);
 
 	//rt->draw
 
-	rt->EndDraw();
+	dw.rt->EndDraw();
 
 
 
 	dw.d3d10_device->CopyResource(dw.texture2, dw.texture);
 
-	D3D10_MAPPED_TEXTURE2D mapped;
-	//mapped.RowPitch = bitmap->w * 4;
 
+	D3D10_MAPPED_TEXTURE2D mapped;
 	if(FAILED(hr = dw.texture2->Map(0, D3D10_MAP_READ, 0, &mapped)))
 	{
 		_com_error err(hr);
@@ -359,22 +347,14 @@ int nf_draw(Tigr * bitmap, const char * text)
 		return -1;
 	}
 
-	//printf("%u %u\n", bitmap->w * 4, mapped.RowPitch);
-
 	memset(bitmap->pix, 0, bitmap->w * bitmap->h * 4);
 	for(size_t j = 0; j < bitmap->h; ++j)
-	{
 		memcpy((char*)bitmap->pix + j * bitmap->w * 4, (char*)mapped.pData + j * mapped.RowPitch, bitmap->w * 4);
-		memset((char*)mapped.pData + j * mapped.RowPitch, 0, bitmap->w * 4);
-	}
 
 	dw.texture2->Unmap(0);
 
-	dw.d3d10_device->CopyResource(dw.texture, dw.texture2);
+	//dw.d3d10_device->CopyResource(dw.texture, dw.texture2);
 
-	solid_brush->Release();
-
-	rt->Release();
 
 	/*
 	WICRect rcLock = {0, 0, bitmap->w, bitmap->h};

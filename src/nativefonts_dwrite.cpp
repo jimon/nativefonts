@@ -13,7 +13,7 @@
 #include <d2d1_1.h>
 #include <d2d1_1helper.h>
 
-#include <wincodec.h>
+//#include <wincodec.h>
 
 #include <stdio.h>
 
@@ -26,8 +26,8 @@
 
 #pragma comment(lib, "dwrite.lib")
 #pragma comment(lib, "d2d1.lib")
-#pragma comment(lib, "Ole32.lib")
-#pragma comment(lib, "Windowscodecs.lib")
+//#pragma comment(lib, "Ole32.lib")
+//#pragma comment(lib, "Windowscodecs.lib")
 #pragma comment(lib, "D3D10_1.lib")
 
 typedef struct
@@ -35,7 +35,7 @@ typedef struct
 	IDWriteFactory * factory;
 	IDWriteTextFormat * format;
 	ID2D1Factory1 * d2d_factory;
-	IWICImagingFactory * wic_factory;
+	//IWICImagingFactory * wic_factory;
 
 	ID3D10Device1 *d3d10_device;
 
@@ -325,12 +325,28 @@ int nf_draw(Tigr * bitmap, const char * text)
 		return -1;
 	}
 
-	D2D1_RECT_F rect = {0.0f, 0.0f, (float)bitmap->w, (float)bitmap->h};
-	dw.rt->DrawTextA(wtext, res, dw.format, rect, dw.solid_brush);
+	//D2D1_RECT_F rect = {0.0f, 0.0f, (float)bitmap->w, (float)bitmap->h};
+	//dw.rt->DrawTextA(wtext, res, dw.format, rect, dw.solid_brush);
+
+	//dw.rt->DrawTextLayout(
+
+	IDWriteTextLayout * layout;
+	if(FAILED(hr = dw.factory->CreateTextLayout(wtext, res, dw.format, bitmap->w, bitmap->h, &layout)))
+	{
+		return -1;
+	}
+
+	DWRITE_TEXT_RANGE t;
+	t.startPosition = 0;
+	t.length = res;
+	layout->SetUnderline(true, t);
+
+	dw.rt->DrawTextLayout(D2D1::Point2F(), layout, dw.solid_brush);
 
 	//rt->draw
 
 	dw.rt->EndDraw();
+	layout->Release();
 
 
 

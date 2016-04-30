@@ -1,0 +1,8 @@
+filter system: Windows
+	ldflags += /SUBSYSTEM:WINDOWS
+	libs += Opengl32 Gdi32 d3d9 User32 Shell32
+filter system: Darwin
+	frameworks += OpenGL Cocoa
+
+build objects(build/**/*): auto **/*.c | **/*.h
+build application(build/demo): auto objects(build/**/*)

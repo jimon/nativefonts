@@ -1,0 +1,4 @@
+.ninja_*
+build.*
+!build.fox
+build/

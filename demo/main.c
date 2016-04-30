@@ -133,10 +133,11 @@ int main(int argc, char *argv[])
 
 		t1 = qpc() - t1;
 
-		//printf("took %f\n", qpc_ms(t1));
+		printf("took %f\n", qpc_ms(t1));
 
 		//tigrBlitAlpha(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h, 1.0f);
 		tigrBlitTint2(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h, tigrRGBA(0xff,0xff,0xff,(unsigned char)(1.0f*255)));
+		//tigrBlit(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h);
 
 		tigrUpdate(screen);
 	}

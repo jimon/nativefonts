@@ -65,7 +65,7 @@ int nf_init()
 		D3D10_DRIVER_TYPE_HARDWARE,
 		NULL,
 		D3D10_CREATE_DEVICE_BGRA_SUPPORT,
-		D3D10_FEATURE_LEVEL_10_1,
+		D3D10_FEATURE_LEVEL_9_1,
 		D3D10_1_SDK_VERSION,
 		&dw.d3d10_device)))
 	{
@@ -97,7 +97,7 @@ int nf_init()
 	D3D10_TEXTURE2D_DESC texDesc2;
 	texDesc2.ArraySize = 1;
 	texDesc2.BindFlags = 0;
-	texDesc2.CPUAccessFlags = D3D10_CPU_ACCESS_READ;
+	texDesc2.CPUAccessFlags = D3D10_CPU_ACCESS_READ | D3D10_CPU_ACCESS_WRITE;
 	texDesc2.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 	texDesc2.Width = 1000;
 	texDesc2.Height = 800;
@@ -157,7 +157,7 @@ int nf_init()
 		DWRITE_FONT_WEIGHT_NORMAL,
 		DWRITE_FONT_STYLE_NORMAL,
 		DWRITE_FONT_STRETCH_NORMAL,
-		64.0f,
+		12.0f,
 		L"", // en-us ?
 		&dw.format)))
 	{
@@ -276,11 +276,14 @@ int nf_draw(Tigr * bitmap, const char * text)
 
 	D2D1_RENDER_TARGET_PROPERTIES props;
 
+	dpi_x = 96.0f;
+	dpi_y = 96.0f;
+
 	props.dpiX = dpi_x;
 	props.dpiY = dpi_y;
 	props.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
 	props.pixelFormat.format = DXGI_FORMAT_UNKNOWN; //DXGI_FORMAT_B8G8R8A8_UNORM;
-	props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED ;//D2D1_ALPHA_MODE_PREMULTIPLIED;
+	props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;//D2D1_ALPHA_MODE_PREMULTIPLIED;
 	props.type = D2D1_RENDER_TARGET_TYPE_DEFAULT; // hardware?
 	props.usage = D2D1_RENDER_TARGET_USAGE_NONE;
 
@@ -296,6 +299,7 @@ int nf_draw(Tigr * bitmap, const char * text)
 		return -1;
 	}
 
+
 	ID2D1SolidColorBrush * solid_brush;
 	if(FAILED(hr = rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &solid_brush)))
 	{
@@ -303,8 +307,24 @@ int nf_draw(Tigr * bitmap, const char * text)
 		return -1;
 	}
 
-	rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+	//rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
 	rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
+
+	rt->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+
+
+	IDWriteRenderingParams * params;
+	rt->GetTextRenderingParams(&params);
+
+	if(params)
+	{
+		int a = params->GetRenderingMode();
+		printf("wut %i\n", a);
+		//rt->SetTextRenderingParams(
+	}
+
+	//params->
+	//rt->SetTextRenderingParams(params);
 	rt->BeginDraw();
 
 	size_t len = strlen(text) + 1;
@@ -317,9 +337,12 @@ int nf_draw(Tigr * bitmap, const char * text)
 	}
 
 	D2D1_RECT_F rect = {0.0f, 0.0f, (float)bitmap->w, (float)bitmap->h};
-	rt->DrawTextA(wtext, len - 1, dw.format, rect, solid_brush);
+	rt->DrawTextA(wtext, res, dw.format, rect, solid_brush);
+
+	//rt->draw
 
 	rt->EndDraw();
+
 
 
 	dw.d3d10_device->CopyResource(dw.texture2, dw.texture);
@@ -342,9 +365,12 @@ int nf_draw(Tigr * bitmap, const char * text)
 	for(size_t j = 0; j < bitmap->h; ++j)
 	{
 		memcpy((char*)bitmap->pix + j * bitmap->w * 4, (char*)mapped.pData + j * mapped.RowPitch, bitmap->w * 4);
+		memset((char*)mapped.pData + j * mapped.RowPitch, 0, bitmap->w * 4);
 	}
 
 	dw.texture2->Unmap(0);
+
+	dw.d3d10_device->CopyResource(dw.texture, dw.texture2);
 
 	solid_brush->Release();
 

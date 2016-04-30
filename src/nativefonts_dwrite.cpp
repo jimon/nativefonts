@@ -28,6 +28,7 @@
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "Ole32.lib")
 #pragma comment(lib, "Windowscodecs.lib")
+#pragma comment(lib, "D3D10_1.lib")
 
 typedef struct
 {
@@ -35,6 +36,15 @@ typedef struct
 	IDWriteTextFormat * format;
 	ID2D1Factory1 * d2d_factory;
 	IWICImagingFactory * wic_factory;
+
+	ID3D10Device1 *d3d10_device;
+
+	IDXGIDevice *  DXGI_device;
+
+	ID3D10Texture2D * texture;
+	ID3D10Texture2D * texture2;
+
+	IDXGISurface * surface;
 
 } dwrite_t;
 
@@ -48,6 +58,78 @@ FLOAT ConvertPointSizeToDIP(FLOAT points)
 int nf_init()
 {
 	HRESULT hr = 0;
+
+
+	if(FAILED(hr = D3D10CreateDevice1(
+		NULL,
+		D3D10_DRIVER_TYPE_HARDWARE,
+		NULL,
+		D3D10_CREATE_DEVICE_BGRA_SUPPORT,
+		D3D10_FEATURE_LEVEL_10_1,
+		D3D10_1_SDK_VERSION,
+		&dw.d3d10_device)))
+	{
+		printf("can't into d3d10\n");
+		return -1;
+	}
+
+	if(FAILED(hr = dw.d3d10_device->QueryInterface(__uuidof(IDXGIDevice), (void **)&dw.DXGI_device)))
+	{
+		printf("can't into dxgi\n");
+		return -1;
+	}
+
+
+	// Allocate a offscreen D3D surface for D2D to render our 2D content into
+	D3D10_TEXTURE2D_DESC texDesc;
+	texDesc.ArraySize = 1;
+	texDesc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
+	texDesc.CPUAccessFlags = 0;
+	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	texDesc.Width = 1000;
+	texDesc.Height = 800;
+	texDesc.MipLevels = 1;
+	texDesc.MiscFlags = 0;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.SampleDesc.Quality = 0;
+	texDesc.Usage = D3D10_USAGE_DEFAULT;
+
+	D3D10_TEXTURE2D_DESC texDesc2;
+	texDesc2.ArraySize = 1;
+	texDesc2.BindFlags = 0;
+	texDesc2.CPUAccessFlags = D3D10_CPU_ACCESS_READ;
+	texDesc2.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	texDesc2.Width = 1000;
+	texDesc2.Height = 800;
+	texDesc2.MipLevels = 1;
+	texDesc2.MiscFlags = 0;
+	texDesc2.SampleDesc.Count = 1;
+	texDesc2.SampleDesc.Quality = 0;
+	texDesc2.Usage = D3D10_USAGE_STAGING;
+
+	if(FAILED(hr = dw.d3d10_device->CreateTexture2D(&texDesc, NULL, &dw.texture)))
+	{
+		_com_error err(hr);
+		LPCTSTR errMsg = err.ErrorMessage();
+
+		printf("can't into d3d10 texture %s\n", errMsg);
+		return -1;
+	}
+
+	if(FAILED(hr = dw.d3d10_device->CreateTexture2D(&texDesc2, NULL, &dw.texture2)))
+	{
+		_com_error err(hr);
+		LPCTSTR errMsg = err.ErrorMessage();
+
+		printf("can't into d3d10 texture2 %s\n", errMsg);
+		return -1;
+	}
+
+	if(FAILED(hr = dw.texture->QueryInterface(&dw.surface)))
+	{
+		printf("can't into dxgi surface\n");
+		return -1;
+	}
 
 	if(FAILED(hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED,
 									   //&IID_IDWriteFactory,
@@ -75,7 +157,7 @@ int nf_init()
 		DWRITE_FONT_WEIGHT_NORMAL,
 		DWRITE_FONT_STYLE_NORMAL,
 		DWRITE_FONT_STRETCH_NORMAL,
-		12.0f,
+		64.0f,
 		L"", // en-us ?
 		&dw.format)))
 	{
@@ -95,7 +177,7 @@ int nf_init()
 		printf("nope1\n");
 		return -1;
 	}
-
+/*
 	if(FAILED(hr = CoInitializeEx(NULL, COINIT_MULTITHREADED)))
 	{
 		printf("very nope\n");
@@ -113,7 +195,7 @@ int nf_init()
 		printf("nope2\n");
 		return -1;
 	}
-
+*/
 	return 0;
 }
 
@@ -137,33 +219,75 @@ int nf_deinit()
 
 int nf_draw(Tigr * bitmap, const char * text)
 {
-
 	IWICBitmap * wicbitmap;
 	HRESULT hr;
 
-	if(FAILED(hr = dw.wic_factory->CreateBitmapFromMemory(
+	/*
+	//memset((BYTE*)bitmap->pix, 0, bitmap->w * bitmap->h * 4);
+
+//	if(FAILED(hr = dw.wic_factory->CreateBitmapFromMemory(
+//				  bitmap->w, bitmap->h,
+//				  GUID_WICPixelFormat32bppPRGBA, bitmap->w * 4,
+//				  bitmap->w * bitmap->h * 4,
+//				  (BYTE*)bitmap->pix, &wicbitmap)))
+
+	if(FAILED(hr = dw.wic_factory->CreateBitmap(
 				  bitmap->w, bitmap->h,
-				  GUID_WICPixelFormat32bppPRGBA, bitmap->w * 4,
-				  bitmap->w * bitmap->h * 4,
-				  (BYTE*)bitmap->pix, &wicbitmap)))
+				  GUID_WICPixelFormat32bppPBGRA,
+				  WICBitmapCacheOnDemand,
+				  &wicbitmap)))
 	{
-		printf("failed1\n");
+		_com_error err(hr);
+		LPCTSTR errMsg = err.ErrorMessage();
+
+		printf("failed1 %s\n", errMsg);
 		return -1;
 	}
 
+
+	float dpi_x, dpi_y;
+	dw.d2d_factory->GetDesktopDpi(&dpi_x, &dpi_y);
+
 	D2D1_RENDER_TARGET_PROPERTIES props;
 
-	props.dpiX = 96.0f;
-	props.dpiY = 96.0f;
+	props.dpiX = dpi_x;
+	props.dpiY = dpi_y;
 	props.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
-	props.pixelFormat.format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_UNKNOWN;
+	props.pixelFormat.format = DXGI_FORMAT_UNKNOWN; //DXGI_FORMAT_B8G8R8A8_UNORM;
+	props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_UNKNOWN ;//D2D1_ALPHA_MODE_PREMULTIPLIED;
 	props.type = D2D1_RENDER_TARGET_TYPE_DEFAULT; // hardware?
 	props.usage = D2D1_RENDER_TARGET_USAGE_NONE;
 
 	ID2D1RenderTarget * rt;
 
 	if(FAILED(hr = dw.d2d_factory->CreateWicBitmapRenderTarget(wicbitmap, &props, &rt)))
+	{
+		_com_error err(hr);
+		LPCTSTR errMsg = err.ErrorMessage();
+
+		printf("failed2 %s\n", errMsg);
+		return -1;
+	}
+	*/
+
+	float dpi_x, dpi_y;
+	dw.d2d_factory->GetDesktopDpi(&dpi_x, &dpi_y);
+
+
+	D2D1_RENDER_TARGET_PROPERTIES props;
+
+	props.dpiX = dpi_x;
+	props.dpiY = dpi_y;
+	props.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
+	props.pixelFormat.format = DXGI_FORMAT_UNKNOWN; //DXGI_FORMAT_B8G8R8A8_UNORM;
+	props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED ;//D2D1_ALPHA_MODE_PREMULTIPLIED;
+	props.type = D2D1_RENDER_TARGET_TYPE_DEFAULT; // hardware?
+	props.usage = D2D1_RENDER_TARGET_USAGE_NONE;
+
+
+	ID2D1RenderTarget * rt;
+
+	if(FAILED(hr = dw.d2d_factory->CreateDxgiSurfaceRenderTarget(dw.surface, props, &rt)))
 	{
 		_com_error err(hr);
 		LPCTSTR errMsg = err.ErrorMessage();
@@ -179,6 +303,8 @@ int nf_draw(Tigr * bitmap, const char * text)
 		return -1;
 	}
 
+	rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
+	rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
 	rt->BeginDraw();
 
 	size_t len = strlen(text) + 1;
@@ -190,16 +316,41 @@ int nf_draw(Tigr * bitmap, const char * text)
 		return -1;
 	}
 
-	D2D1_RECT_F rect = {0, 0, bitmap->w, bitmap->h};
+	D2D1_RECT_F rect = {0.0f, 0.0f, (float)bitmap->w, (float)bitmap->h};
 	rt->DrawTextA(wtext, len - 1, dw.format, rect, solid_brush);
 
 	rt->EndDraw();
 
 
+	dw.d3d10_device->CopyResource(dw.texture2, dw.texture);
+
+	D3D10_MAPPED_TEXTURE2D mapped;
+	//mapped.RowPitch = bitmap->w * 4;
+
+	if(FAILED(hr = dw.texture2->Map(0, D3D10_MAP_READ, 0, &mapped)))
+	{
+		_com_error err(hr);
+		LPCTSTR errMsg = err.ErrorMessage();
+
+		printf("failed map %s\n", errMsg);
+		return -1;
+	}
+
+	//printf("%u %u\n", bitmap->w * 4, mapped.RowPitch);
+
+	memset(bitmap->pix, 0, bitmap->w * bitmap->h * 4);
+	for(size_t j = 0; j < bitmap->h; ++j)
+	{
+		memcpy((char*)bitmap->pix + j * bitmap->w * 4, (char*)mapped.pData + j * mapped.RowPitch, bitmap->w * 4);
+	}
+
+	dw.texture2->Unmap(0);
+
 	solid_brush->Release();
 
 	rt->Release();
 
+	/*
 	WICRect rcLock = {0, 0, bitmap->w, bitmap->h};
 	IWICBitmapLock *pILock = NULL;
 
@@ -222,9 +373,22 @@ int nf_draw(Tigr * bitmap, const char * text)
 
 	memcpy(bitmap->pix, pv, cbBufferSize);
 
+	// undo pma (facepalm)
+//	for(size_t j = 0; j < bitmap->h; ++j)
+//	{
+//		for(size_t i = 0; i < bitmap->w; ++i)
+//		{
+//			TPixel & pixel = bitmap->pix[j * bitmap->w + i];
+//			float a = pixel.a / 255.0f;
+//			pixel.r /= a;
+//			pixel.g /= a;
+//			pixel.b /= a;
+//		}
+//	}
+
 	pILock->Release();
 
-	wicbitmap->Release();
+	wicbitmap->Release();*/
 
 
 //	STDMETHOD(CreateTextLayout)(THIS_

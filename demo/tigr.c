@@ -258,7 +258,7 @@ void tigrRect(Tigr *bmp, int x, int y, int w, int h, TPixel color)
 	int x1, y1;
 	if (w <= 0 || h <= 0)
 		return;
-	
+
 	x1 = x + w-1;
 	y1 = y + h-1;
 	tigrLine(bmp, x, y, x1, y, color);
@@ -333,6 +333,38 @@ void tigrBlitTint(Tigr *dst, Tigr *src, int dx, int dy, int sx, int sy, int w, i
 			td[x].r += (unsigned char)((r - td[x].r)*a >> 16);
 			td[x].g += (unsigned char)((g - td[x].g)*a >> 16);
 			td[x].b += (unsigned char)((b - td[x].b)*a >> 16);
+			td[x].a += (unsigned char)((ts[x].a - td[x].a)*a >> 16);
+		}
+		ts += st;
+		td += dt;
+	} while(--h);
+}
+
+void tigrBlitTint2(Tigr *dst, Tigr *src, int dx, int dy, int sx, int sy, int w, int h, TPixel tint)
+{
+	TPixel *td, *ts;
+	int x, st, dt, xr,xg,xb,xa;
+	CLIP();
+
+	xr = EXPAND(tint.r);
+	xg = EXPAND(tint.g);
+	xb = EXPAND(tint.b);
+	xa = EXPAND(tint.a);
+
+	ts = &src->pix[sy*src->w + sx];
+	td = &dst->pix[dy*dst->w + dx];
+	st = src->w;
+	dt = dst->w;
+	do {
+		for (x=0;x<w;x++)
+		{
+			unsigned r = (xr * ts[x].r) >> 8;
+			unsigned g = (xg * ts[x].g) >> 8;
+			unsigned b = (xb * ts[x].b) >> 8;
+			unsigned a = xa * EXPAND(ts[x].a);
+			td[x].r += (unsigned char)(r - (td[x].r * a >> 16));
+			td[x].g += (unsigned char)(g - (td[x].g * a >> 16));
+			td[x].b += (unsigned char)(b - (td[x].b * a >> 16));
 			td[x].a += (unsigned char)((ts[x].a - td[x].a)*a >> 16);
 		}
 		ts += st;
@@ -512,7 +544,7 @@ static Tigr *tigrLoadPng(PNG *png)
 	} else {
 		convert(bpp, bmp->w, bmp->h, out, bmp->pix);
 	}
-	
+
 	free(data);
 	return bmp;
 
@@ -623,7 +655,7 @@ static void literal(Save *s, unsigned v)
 {
 	// Encode a literal/length using the built-in tables.
 	// Could do better with a custom table but whatever.
-	     if (v < 144)   putbitsr(s, 0x030+v-  0, 8);
+		 if (v < 144)   putbitsr(s, 0x030+v-  0, 8);
 	else if (v < 256)   putbitsr(s, 0x190+v-144, 9);
 	else if (v < 280)   putbitsr(s, 0x000+v-256, 7);
 	else                putbitsr(s, 0x0c0+v-280, 8);
@@ -641,7 +673,7 @@ static void endrun(Save *s)
 	s->runlen--;
 	literal(s, s->prev);
 
-	     if (s->runlen >= 67) encodelen(s, 277, 4, s->runlen - 67);
+		 if (s->runlen >= 67) encodelen(s, 277, 4, s->runlen - 67);
 	else if (s->runlen >= 35) encodelen(s, 273, 3, s->runlen - 35);
 	else if (s->runlen >= 19) encodelen(s, 269, 2, s->runlen - 19);
 	else if (s->runlen >= 11) encodelen(s, 265, 1, s->runlen - 11);
@@ -718,7 +750,7 @@ int tigrSaveImage(const char *fileName, Tigr *bmp)
 {
 	Save s;
 	long dataPos, dataSize, err;
-	
+
 	// TODO - unicode?
 	FILE *out = fopen(fileName, "wb");
 	if (!out)
@@ -959,7 +991,7 @@ static void block(State *s)
 {
 	for (;;) {
 		int sym = decode(s, s->litcodes, s->tlit);
-		     if (sym < 256) *emit(s, 1) = (unsigned char)sym;
+			 if (sym < 256) *emit(s, 1) = (unsigned char)sym;
 		else if (sym > 256) run(s, sym-257);
 		else break;
 	}
@@ -968,7 +1000,7 @@ static void block(State *s)
 static void stored(State *s)
 {
 	// Uncompressed data block.
-	int len; 
+	int len;
 	bits(s, s->count & 7);
 	len = bits(s, 16);
 	CHECK(((len^s->bits)&0xffff) == 0xffff);
@@ -1519,7 +1551,7 @@ int tigrTextHeight(TigrFont *font, const char *text)
 	{
 		text = tigrDecodeUTF8(text, &c);
 		if (c == '\n' && *text)
-			h += rowh; 
+			h += rowh;
 	}
 	return h;
 }
@@ -1550,88 +1582,88 @@ int tigrTextHeight(TigrFont *font, const char *text)
 //   texSize      c1       1
 //
 
-    vs_2_0
-    def c2, -0.5, 2, -1, 0
-    def c3, 1, -1, 0, 0
-    dcl_position v0
-    dcl_texcoord v1
-    mul oT0.xy, v1, c1
-    add r0.xyz, v0.xyxw, c2.x
-    rcp r1.xw, c0.x
-    rcp r1.y, c0.y
-    mul r0.xyz, r0, r1.xyww
-    mad r0.xyz, r0, c2.y, c2.z
-    mad oPos.xyw, r0.xyzz, c3.xyzz, c3.zzzx
-    mov oPos.z, v0.z
+	vs_2_0
+	def c2, -0.5, 2, -1, 0
+	def c3, 1, -1, 0, 0
+	dcl_position v0
+	dcl_texcoord v1
+	mul oT0.xy, v1, c1
+	add r0.xyz, v0.xyxw, c2.x
+	rcp r1.xw, c0.x
+	rcp r1.y, c0.y
+	mul r0.xyz, r0, r1.xyww
+	mad r0.xyz, r0, c2.y, c2.z
+	mad oPos.xyw, r0.xyzz, c3.xyzz, c3.zzzx
+	mov oPos.z, v0.z
 
 // approximately 8 instruction slots used
 #endif
 
 const BYTE tigrUpscaleVSCode[] =
 {
-      0,   2, 254, 255, 254, 255, 
-     42,   0,  67,  84,  65,  66, 
-     28,   0,   0,   0, 111,   0, 
-      0,   0,   0,   2, 254, 255, 
-      2,   0,   0,   0,  28,   0, 
-      0,   0,   8, 131,   0,   0, 
-    104,   0,   0,   0,  68,   0, 
-      0,   0,   2,   0,   0,   0, 
-      1,   0,   2,   0,  80,   0, 
-      0,   0,   0,   0,   0,   0, 
-     96,   0,   0,   0,   2,   0, 
-      1,   0,   1,   0,   6,   0, 
-     80,   0,   0,   0,   0,   0, 
-      0,   0, 115,  99, 114, 101, 
-    101, 110,  83, 105, 122, 101, 
-      0, 171,   1,   0,   3,   0, 
-      1,   0,   4,   0,   1,   0, 
-      0,   0,   0,   0,   0,   0, 
-    116, 101, 120,  83, 105, 122, 
-    101,   0, 118, 115,  95,  50, 
-     95,  48,   0,  77, 105,  99, 
-    114, 111, 115, 111, 102, 116, 
-     32,  40,  82,  41,  32,  72, 
-     76,  83,  76,  32,  83, 104, 
-     97, 100, 101, 114,  32,  67, 
-    111, 109, 112, 105, 108, 101, 
-    114,  32,  49,  48,  46,  48, 
-     46,  49,  48,  48,  49,  49, 
-     46,  49,  54,  51,  56,  52, 
-      0, 171,  81,   0,   0,   5, 
-      2,   0,  15, 160,   0,   0, 
-      0, 191,   0,   0,   0,  64, 
-      0,   0, 128, 191,   0,   0, 
-      0,   0,  81,   0,   0,   5, 
-      3,   0,  15, 160,   0,   0, 
-    128,  63,   0,   0, 128, 191, 
-      0,   0,   0,   0,   0,   0, 
-      0,   0,  31,   0,   0,   2, 
-      0,   0,   0, 128,   0,   0, 
-     15, 144,  31,   0,   0,   2, 
-      5,   0,   0, 128,   1,   0, 
-     15, 144,   5,   0,   0,   3, 
-      0,   0,   3, 224,   1,   0, 
-    228, 144,   1,   0, 228, 160, 
-      2,   0,   0,   3,   0,   0, 
-      7, 128,   0,   0, 196, 144, 
-      2,   0,   0, 160,   6,   0, 
-      0,   2,   1,   0,   9, 128, 
-      0,   0,   0, 160,   6,   0, 
-      0,   2,   1,   0,   2, 128, 
-      0,   0,  85, 160,   5,   0, 
-      0,   3,   0,   0,   7, 128, 
-      0,   0, 228, 128,   1,   0, 
-    244, 128,   4,   0,   0,   4, 
-      0,   0,   7, 128,   0,   0, 
-    228, 128,   2,   0,  85, 160, 
-      2,   0, 170, 160,   4,   0, 
-      0,   4,   0,   0,  11, 192, 
-      0,   0, 164, 128,   3,   0, 
-    164, 160,   3,   0,  42, 160, 
-      1,   0,   0,   2,   0,   0, 
-      4, 192,   0,   0, 170, 144, 
-    255, 255,   0,   0
+	  0,   2, 254, 255, 254, 255,
+	 42,   0,  67,  84,  65,  66,
+	 28,   0,   0,   0, 111,   0,
+	  0,   0,   0,   2, 254, 255,
+	  2,   0,   0,   0,  28,   0,
+	  0,   0,   8, 131,   0,   0,
+	104,   0,   0,   0,  68,   0,
+	  0,   0,   2,   0,   0,   0,
+	  1,   0,   2,   0,  80,   0,
+	  0,   0,   0,   0,   0,   0,
+	 96,   0,   0,   0,   2,   0,
+	  1,   0,   1,   0,   6,   0,
+	 80,   0,   0,   0,   0,   0,
+	  0,   0, 115,  99, 114, 101,
+	101, 110,  83, 105, 122, 101,
+	  0, 171,   1,   0,   3,   0,
+	  1,   0,   4,   0,   1,   0,
+	  0,   0,   0,   0,   0,   0,
+	116, 101, 120,  83, 105, 122,
+	101,   0, 118, 115,  95,  50,
+	 95,  48,   0,  77, 105,  99,
+	114, 111, 115, 111, 102, 116,
+	 32,  40,  82,  41,  32,  72,
+	 76,  83,  76,  32,  83, 104,
+	 97, 100, 101, 114,  32,  67,
+	111, 109, 112, 105, 108, 101,
+	114,  32,  49,  48,  46,  48,
+	 46,  49,  48,  48,  49,  49,
+	 46,  49,  54,  51,  56,  52,
+	  0, 171,  81,   0,   0,   5,
+	  2,   0,  15, 160,   0,   0,
+	  0, 191,   0,   0,   0,  64,
+	  0,   0, 128, 191,   0,   0,
+	  0,   0,  81,   0,   0,   5,
+	  3,   0,  15, 160,   0,   0,
+	128,  63,   0,   0, 128, 191,
+	  0,   0,   0,   0,   0,   0,
+	  0,   0,  31,   0,   0,   2,
+	  0,   0,   0, 128,   0,   0,
+	 15, 144,  31,   0,   0,   2,
+	  5,   0,   0, 128,   1,   0,
+	 15, 144,   5,   0,   0,   3,
+	  0,   0,   3, 224,   1,   0,
+	228, 144,   1,   0, 228, 160,
+	  2,   0,   0,   3,   0,   0,
+	  7, 128,   0,   0, 196, 144,
+	  2,   0,   0, 160,   6,   0,
+	  0,   2,   1,   0,   9, 128,
+	  0,   0,   0, 160,   6,   0,
+	  0,   2,   1,   0,   2, 128,
+	  0,   0,  85, 160,   5,   0,
+	  0,   3,   0,   0,   7, 128,
+	  0,   0, 228, 128,   1,   0,
+	244, 128,   4,   0,   0,   4,
+	  0,   0,   7, 128,   0,   0,
+	228, 128,   2,   0,  85, 160,
+	  2,   0, 170, 160,   4,   0,
+	  0,   4,   0,   0,  11, 192,
+	  0,   0, 164, 128,   3,   0,
+	164, 160,   3,   0,  42, 160,
+	  1,   0,   0,   2,   0,   0,
+	  4, 192,   0,   0, 170, 144,
+	255, 255,   0,   0
 };
 
 //////// End of inlined file: tigr_upscale_d3d9_vs.h ////////
@@ -1658,116 +1690,116 @@ const BYTE tigrUpscaleVSCode[] =
 //   image        s0       1
 //
 
-    ps_2_0
-    def c0, 0.5, -0.5, 0, 0
-    dcl t0.xy
-    dcl_2d s0
-    frc r0.w, t0.y
-    add r0.x, -r0.w, c0.x
-    mov r1.w, c0.x
-    mad r0.x, c2.z, r0.x, r1.w
-    add r0.x, r0.x, r0.x
-    frc r0.yz, t0.zxyw
-    add r0.yz, -r0, t0.zxyw
-    add r0.yz, r0, c0.x
-    lrp r1.xy, c2, t0, r0.yzxw
-    mul r2.x, r1.x, c1.z
-    mul r2.y, r1.y, c1.w
-    texld r2, r2, s0
-    mad r0.xyz, r2, r0.x, c0.y
-    mad r2.xyz, c2.w, r0, r1.w
-    mov oC0, r2
+	ps_2_0
+	def c0, 0.5, -0.5, 0, 0
+	dcl t0.xy
+	dcl_2d s0
+	frc r0.w, t0.y
+	add r0.x, -r0.w, c0.x
+	mov r1.w, c0.x
+	mad r0.x, c2.z, r0.x, r1.w
+	add r0.x, r0.x, r0.x
+	frc r0.yz, t0.zxyw
+	add r0.yz, -r0, t0.zxyw
+	add r0.yz, r0, c0.x
+	lrp r1.xy, c2, t0, r0.yzxw
+	mul r2.x, r1.x, c1.z
+	mul r2.y, r1.y, c1.w
+	texld r2, r2, s0
+	mad r0.xyz, r2, r0.x, c0.y
+	mad r2.xyz, c2.w, r0, r1.w
+	mov oC0, r2
 
 // approximately 15 instruction slots used (1 texture, 14 arithmetic)
 #endif
 
 const BYTE tigrUpscalePSCode[] =
 {
-      0,   2, 255, 255, 254, 255, 
-     52,   0,  67,  84,  65,  66, 
-     28,   0,   0,   0, 151,   0, 
-      0,   0,   0,   2, 255, 255, 
-      3,   0,   0,   0,  28,   0, 
-      0,   0,   8, 131,   0,   0, 
-    144,   0,   0,   0,  88,   0, 
-      0,   0,   3,   0,   0,   0, 
-      1,   0,   0,   0,  96,   0, 
-      0,   0,   0,   0,   0,   0, 
-    112,   0,   0,   0,   2,   0, 
-      2,   0,   1,   0,  10,   0, 
-    120,   0,   0,   0,   0,   0, 
-      0,   0, 136,   0,   0,   0, 
-      2,   0,   1,   0,   1,   0, 
-      6,   0, 120,   0,   0,   0, 
-      0,   0,   0,   0, 105, 109, 
-     97, 103, 101,   0, 171, 171, 
-      4,   0,  12,   0,   1,   0, 
-      1,   0,   1,   0,   0,   0, 
-      0,   0,   0,   0, 112,  97, 
-    114,  97, 109, 115,   0, 171, 
-      1,   0,   3,   0,   1,   0, 
-      4,   0,   1,   0,   0,   0, 
-      0,   0,   0,   0, 116, 101, 
-    120,  83, 105, 122, 101,   0, 
-    112, 115,  95,  50,  95,  48, 
-      0,  77, 105,  99, 114, 111, 
-    115, 111, 102, 116,  32,  40, 
-     82,  41,  32,  72,  76,  83, 
-     76,  32,  83, 104,  97, 100, 
-    101, 114,  32,  67, 111, 109, 
-    112, 105, 108, 101, 114,  32, 
-     49,  48,  46,  48,  46,  49, 
-     48,  48,  49,  49,  46,  49, 
-     54,  51,  56,  52,   0, 171, 
-     81,   0,   0,   5,   0,   0, 
-     15, 160,   0,   0,   0,  63, 
-      0,   0,   0, 191,   0,   0, 
-      0,   0,   0,   0,   0,   0, 
-     31,   0,   0,   2,   0,   0, 
-      0, 128,   0,   0,   3, 176, 
-     31,   0,   0,   2,   0,   0, 
-      0, 144,   0,   8,  15, 160, 
-     19,   0,   0,   2,   0,   0, 
-      8, 128,   0,   0,  85, 176, 
-      2,   0,   0,   3,   0,   0, 
-      1, 128,   0,   0, 255, 129, 
-      0,   0,   0, 160,   1,   0, 
-      0,   2,   1,   0,   8, 128, 
-      0,   0,   0, 160,   4,   0, 
-      0,   4,   0,   0,   1, 128, 
-      2,   0, 170, 160,   0,   0, 
-      0, 128,   1,   0, 255, 128, 
-      2,   0,   0,   3,   0,   0, 
-      1, 128,   0,   0,   0, 128, 
-      0,   0,   0, 128,  19,   0, 
-      0,   2,   0,   0,   6, 128, 
-      0,   0, 210, 176,   2,   0, 
-      0,   3,   0,   0,   6, 128, 
-      0,   0, 228, 129,   0,   0, 
-    210, 176,   2,   0,   0,   3, 
-      0,   0,   6, 128,   0,   0, 
-    228, 128,   0,   0,   0, 160, 
-     18,   0,   0,   4,   1,   0, 
-      3, 128,   2,   0, 228, 160, 
-      0,   0, 228, 176,   0,   0, 
-    201, 128,   5,   0,   0,   3, 
-      2,   0,   1, 128,   1,   0, 
-      0, 128,   1,   0, 170, 160, 
-      5,   0,   0,   3,   2,   0, 
-      2, 128,   1,   0,  85, 128, 
-      1,   0, 255, 160,  66,   0, 
-      0,   3,   2,   0,  15, 128, 
-      2,   0, 228, 128,   0,   8, 
-    228, 160,   4,   0,   0,   4, 
-      0,   0,   7, 128,   2,   0, 
-    228, 128,   0,   0,   0, 128, 
-      0,   0,  85, 160,   4,   0, 
-      0,   4,   2,   0,   7, 128, 
-      2,   0, 255, 160,   0,   0, 
-    228, 128,   1,   0, 255, 128, 
-      1,   0,   0,   2,   0,   8, 
-     15, 128,   2,   0, 228, 128, 
-    255, 255,   0,   0
+	  0,   2, 255, 255, 254, 255,
+	 52,   0,  67,  84,  65,  66,
+	 28,   0,   0,   0, 151,   0,
+	  0,   0,   0,   2, 255, 255,
+	  3,   0,   0,   0,  28,   0,
+	  0,   0,   8, 131,   0,   0,
+	144,   0,   0,   0,  88,   0,
+	  0,   0,   3,   0,   0,   0,
+	  1,   0,   0,   0,  96,   0,
+	  0,   0,   0,   0,   0,   0,
+	112,   0,   0,   0,   2,   0,
+	  2,   0,   1,   0,  10,   0,
+	120,   0,   0,   0,   0,   0,
+	  0,   0, 136,   0,   0,   0,
+	  2,   0,   1,   0,   1,   0,
+	  6,   0, 120,   0,   0,   0,
+	  0,   0,   0,   0, 105, 109,
+	 97, 103, 101,   0, 171, 171,
+	  4,   0,  12,   0,   1,   0,
+	  1,   0,   1,   0,   0,   0,
+	  0,   0,   0,   0, 112,  97,
+	114,  97, 109, 115,   0, 171,
+	  1,   0,   3,   0,   1,   0,
+	  4,   0,   1,   0,   0,   0,
+	  0,   0,   0,   0, 116, 101,
+	120,  83, 105, 122, 101,   0,
+	112, 115,  95,  50,  95,  48,
+	  0,  77, 105,  99, 114, 111,
+	115, 111, 102, 116,  32,  40,
+	 82,  41,  32,  72,  76,  83,
+	 76,  32,  83, 104,  97, 100,
+	101, 114,  32,  67, 111, 109,
+	112, 105, 108, 101, 114,  32,
+	 49,  48,  46,  48,  46,  49,
+	 48,  48,  49,  49,  46,  49,
+	 54,  51,  56,  52,   0, 171,
+	 81,   0,   0,   5,   0,   0,
+	 15, 160,   0,   0,   0,  63,
+	  0,   0,   0, 191,   0,   0,
+	  0,   0,   0,   0,   0,   0,
+	 31,   0,   0,   2,   0,   0,
+	  0, 128,   0,   0,   3, 176,
+	 31,   0,   0,   2,   0,   0,
+	  0, 144,   0,   8,  15, 160,
+	 19,   0,   0,   2,   0,   0,
+	  8, 128,   0,   0,  85, 176,
+	  2,   0,   0,   3,   0,   0,
+	  1, 128,   0,   0, 255, 129,
+	  0,   0,   0, 160,   1,   0,
+	  0,   2,   1,   0,   8, 128,
+	  0,   0,   0, 160,   4,   0,
+	  0,   4,   0,   0,   1, 128,
+	  2,   0, 170, 160,   0,   0,
+	  0, 128,   1,   0, 255, 128,
+	  2,   0,   0,   3,   0,   0,
+	  1, 128,   0,   0,   0, 128,
+	  0,   0,   0, 128,  19,   0,
+	  0,   2,   0,   0,   6, 128,
+	  0,   0, 210, 176,   2,   0,
+	  0,   3,   0,   0,   6, 128,
+	  0,   0, 228, 129,   0,   0,
+	210, 176,   2,   0,   0,   3,
+	  0,   0,   6, 128,   0,   0,
+	228, 128,   0,   0,   0, 160,
+	 18,   0,   0,   4,   1,   0,
+	  3, 128,   2,   0, 228, 160,
+	  0,   0, 228, 176,   0,   0,
+	201, 128,   5,   0,   0,   3,
+	  2,   0,   1, 128,   1,   0,
+	  0, 128,   1,   0, 170, 160,
+	  5,   0,   0,   3,   2,   0,
+	  2, 128,   1,   0,  85, 128,
+	  1,   0, 255, 160,  66,   0,
+	  0,   3,   2,   0,  15, 128,
+	  2,   0, 228, 128,   0,   8,
+	228, 160,   4,   0,   0,   4,
+	  0,   0,   7, 128,   2,   0,
+	228, 128,   0,   0,   0, 128,
+	  0,   0,  85, 160,   4,   0,
+	  0,   4,   2,   0,   7, 128,
+	  2,   0, 255, 160,   0,   0,
+	228, 128,   1,   0, 255, 128,
+	  1,   0,   0,   2,   0,   8,
+	 15, 128,   2,   0, 228, 128,
+	255, 255,   0,   0
 };
 
 //////// End of inlined file: tigr_upscale_d3d9_ps.h ////////
@@ -2010,8 +2042,8 @@ void tigrGAPIPresent(Tigr *bmp, int dw, int dh)
 	IDirect3DDevice9_SetRenderState(d3d->dev, D3DRS_ALPHABLENDENABLE, TRUE);
 	IDirect3DDevice9_SetRenderState(d3d->dev, D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
 	IDirect3DDevice9_SetRenderState(d3d->dev, D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
-	tigrDxQuad(d3d->dev, d3d->vidTex[1], 
-		(int)(dw - win->widgets->w * win->widgetsScale), 0, 
+	tigrDxQuad(d3d->dev, d3d->vidTex[1],
+		(int)(dw - win->widgets->w * win->widgetsScale), 0,
 		dw, (int)(win->widgets->h * win->widgetsScale));
 
 	// Et fini.
@@ -2473,7 +2505,7 @@ Tigr *tigrWindow(int w, int h, const char *title, int flags)
 	WINDOWPLACEMENT wp;
 	DWORD wpsize = sizeof(wp);
 	#endif
-	
+
 	wchar_t *wtitle = unicode(title);
 
 	// Find our registry key.
@@ -3991,8 +4023,8 @@ void tigrGAPIPresent(Tigr *bmp, int w, int h)
 	{
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		tigrGAPIDraw(gl->gl_legacy, gl->uniform_model, gl->tex[1], win->widgets, 
-			(int)(w - win->widgets->w * win->widgetsScale), 0, 
+		tigrGAPIDraw(gl->gl_legacy, gl->uniform_model, gl->tex[1], win->widgets,
+			(int)(w - win->widgets->w * win->widgetsScale), 0,
 			w, (int)(win->widgets->h * win->widgetsScale));
 	}
 

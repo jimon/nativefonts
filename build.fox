@@ -4,5 +4,8 @@ filter system: Windows
 filter system: Darwin
 	frameworks += OpenGL Cocoa
 
+includedirs += . demo src
+
 build objects(build/**/*): auto **/*.c | **/*.h
+build objects(build/**/*): auto **/*.cpp | **/*.h
 build application(build/demo): auto objects(build/**/*)

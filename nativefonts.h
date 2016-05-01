@@ -1,6 +1,10 @@
-#pragma once
+// codestyle :
+// - C99
+// - 80 columns max
+// - tab = 4 spaces
+// - snake_case
 
-#include "tigr.h"
+#pragma once
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -9,14 +13,11 @@
 extern "C" {
 #endif
 
-int nf_init();
-int nf_deinit();
+#ifndef NF_ON_ERROR
+#define NF_ON_ERROR(msg, ...) fprintf(stderr, msg, __VA_ARGS__)
+#endif
 
-int nf_draw(Tigr * bitmap, const char * text);
-
-// -----------------------
-
-// font
+// ------------------------------------------------------------- font parameters
 typedef enum {
 	NF_WEIGHT_NORMAL = 0,
 	NF_WEIGHT_BOLD,
@@ -46,7 +47,15 @@ typedef struct {
 	uint8_t _reserved;
 } nf_font_params_t;
 
-// system information
+// ---------------------------------------------------------- system information
+#ifndef NF_MAX_WIDTH
+#define NF_MAX_WIDTH 2048
+#endif
+
+#ifndef NF_MAX_HEIGHT
+#define NF_MAX_HEIGHT 2048
+#endif
+
 typedef enum {
 	NF_BITMAP_B8G8R8A8_UNORM_PMA = 0,
 } nf_bitmap_t;
@@ -59,7 +68,7 @@ typedef struct {
 	float ppi_y;
 } nf_system_info_t;
 
-// text features
+// --------------------------------------------------------------- text features
 typedef enum {
 	// emphasis
 	NF_FEATURE_BOLD = 0,
@@ -92,14 +101,16 @@ typedef struct {
 	float value;
 } nf_feature_t;
 
-// functions
+// ------------------------------------------------------------------- functions
 typedef uintptr_t nf_font_t;
 
 nf_system_info_t nf_system_info();
 
+// returns 0 on error
 nf_font_t nf_font(const char * font_name, nf_font_params_t params);
-void nf_free_font(nf_font_t font);
+void nf_free(nf_font_t font);
 
+// return < 0 on error
 int nf_print(
 	void * bitmap, uint16_t w, uint16_t h,
 	nf_font_t font, nf_feature_t * features, size_t features_count,

@@ -37,34 +37,12 @@ const char * sample =
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-// from MSDN :
-// The frequency of the performance counter is fixed at system boot
-// and is consistent across all processors. Therefore,
-// the frequency need only be queried upon application initialization,
-// and the result can be cached.
-
 LARGE_INTEGER qpc_freq;
 
 void qpc_init()
 {
 	QueryPerformanceFrequency(&qpc_freq);
 }
-
-// from MSDN :
-// What is the computational cost of calling QPC?
-// The computational calling cost of QPC is determined primarily by
-// the underlying hardware platform. If the TSC register is used as
-// the basis for QPC, the computational cost is determined primarily
-// by how long the processor takes to process an RDTSC instruction.
-// This time ranges from 10s of CPU cycles to several hundred CPU cycles
-// depending upon the processor used. If the TSC can't be used,
-// the system will select a different hardware time basis.
-// Because these time bases are located on the motherboard
-// (for example, on the PCI South Bridge or PCH), the per-call computational
-// cost is higher than the TSC, and is frequently in
-// the vicinity of 0.8 - 1.0 microseconds depending on processor speed
-// and other hardware factors. This cost is dominated by the time required
-// to access the hardware device on the motherboard.
 
 uint64_t qpc()
 {
@@ -73,35 +51,11 @@ uint64_t qpc()
 	return time.QuadPart;
 }
 
-double qpc_s(uint64_t time)
-{
-	return (double)(time) / (double)qpc_freq.QuadPart;
-}
-
 double qpc_ms(uint64_t time)
 {
 	return (double)(time * 1000) / (double)qpc_freq.QuadPart;
 }
 
-double qpc_us(uint64_t time)
-{
-	return (double)(time * 1000000) / (double)qpc_freq.QuadPart;
-}
-
-uint64_t qpc_from_s(double time)
-{
-	return (uint64_t)(time * (double)qpc_freq.QuadPart);
-}
-
-uint64_t qpc_from_ms(double time)
-{
-	return (uint64_t)((time / 1000.0) * (double)qpc_freq.QuadPart);
-}
-
-uint64_t qpc_from_us(double time)
-{
-	return (uint64_t)((time / 1000000.0) * (double)qpc_freq.QuadPart);
-}
 
 
 
@@ -111,26 +65,33 @@ int main(int argc, char *argv[])
 
 	qpc_init();
 
-	int state = nf_init();
+	//int state = nf_init();
+	//printf("state %i\n", state);
 
-	printf("state %i\n", state);
+	//if(state < 0)
+	//	return -1;
 
-	if(state < 0)
-		return -1;
+	nf_system_info_t info = nf_system_info();
+
+	printf("wut %f\n", info.ppi_x);
+
+	nf_font_params_t params = {0};
+	params.size_in_pt = 12.0f;
+	nf_font_t font = nf_font("Arial", params);
 
 	Tigr *screen = tigrWindow(1000, 800, "Hello", 0);
-
-	Tigr *bitmap = tigrBitmap(1000, 800);
-
-	nf_font_params_t f;
+	Tigr *bitmap = tigrBitmap(screen->w, screen->h);
 
 	while (!tigrClosed(screen) && !tigrKeyDown(screen, TK_ESCAPE))
 	{
 		tigrClear(screen, tigrRGB(0x80, 0x90, 0xa0));
-		//tigrPrint(screen, tfont, 120, 110, tigrRGB(0xff, 0xff, 0xff), "Hello, world.");
+		tigrPrint(screen, tfont, 120, 110, tigrRGB(0xff, 0xff, 0xff), "Hello, world.");
 
 		uint64_t t1 = qpc();
-		if(nf_draw(bitmap, sample) < 0)
+		//if(nf_draw(bitmap, sample) < 0)
+		//	return -1;
+
+		if(nf_print(bitmap->pix, bitmap->w, bitmap->h, font, NULL, 0, sample) < 0)
 			return -1;
 
 		t1 = qpc() - t1;
@@ -138,8 +99,8 @@ int main(int argc, char *argv[])
 		//printf("took %f\n", qpc_ms(t1));
 
 		//tigrBlitAlpha(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h, 1.0f);
-		//tigrBlitTint2(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h, tigrRGBA(0xff,0xff,0xff,(unsigned char)(1.0f*255)));
-		tigrBlit(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h);
+		tigrBlitTint2(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h, tigrRGBA(0xff,0xff,0xff,(unsigned char)(1.0f*255)));
+		//tigrBlit(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h);
 
 		tigrUpdate(screen);
 	}
@@ -147,6 +108,8 @@ int main(int argc, char *argv[])
 	tigrFree(bitmap);
 	tigrFree(screen);
 
-	nf_deinit();
+	nf_free(font);
+
+	//nf_deinit();
 	return 0;
 }

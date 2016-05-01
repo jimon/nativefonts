@@ -57,10 +57,9 @@ typedef enum {
 
 typedef struct {
 	float size_in_pt;
-	uint8_t weight;
-	uint8_t style;
-	uint8_t stretch;
-	uint8_t _reserved;
+	nf_font_weight_t weight;
+	nf_font_style_t style;
+	nf_font_stretch_t stretch;
 } nf_font_params_t;
 
 // ---------------------------------------------------------- system information
@@ -83,6 +82,12 @@ typedef enum {
 	NF_FEATURE_UNDERLINE,
 	NF_FEATURE_ITALIC,
 
+	// TODO more effects
+
+	// wrapping, by default text is wrapped
+	NF_FEATURE_WRAP,
+	NF_FEATURE_NO_WRAP,
+
 	// align features are applied to whole text
 	// defaults are left, left
 	NF_FEATURE_ALIGN_LEFT,
@@ -104,7 +109,7 @@ typedef enum {
 	// default is system defined, see system info
 	NF_FEATURE_PPI,
 
-	// color is applied to whole text (todo?)
+	// color is applied to whole text (TODO?)
 	NF_FEATURE_COLOR_BG,   // default is 0,0,0,0
 	NF_FEATURE_COLOR_TEXT, // default is 1,1,1,1
 
@@ -121,6 +126,15 @@ typedef struct {
 	};
 } nf_feature_t;
 
+// ---------------------------------------------------------------- bounding box
+
+typedef struct {
+	uint16_t x;
+	uint16_t y;
+	uint16_t w;
+	uint16_t h;
+} nf_aabb_t;
+
 // ------------------------------------------------------------------- functions
 typedef uintptr_t nf_font_t;
 
@@ -134,7 +148,7 @@ void nf_free(nf_font_t font);
 int nf_print(
 	void * bitmap, uint16_t w, uint16_t h,
 	nf_font_t font, nf_feature_t * features, size_t features_count,
-	const char * text, ...);
+	nf_aabb_t * result_rect, const char * text, ...);
 
 #ifdef __cplusplus
 }

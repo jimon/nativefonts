@@ -45,13 +45,13 @@ void gen_sample2_str()
 
 int main(int argc, char *argv[])
 {
-	Tigr * screen = tigrWindow(1000, 800, "Hello", 0);
+	Tigr * screen = tigrWindow(1000, 800, "Native fonts demo", 0);
 	Tigr * bitmap1 = tigrBitmap(screen->w, screen->h);
 	Tigr * bitmap2 = tigrBitmap(screen->w, screen->h);
 
 	nf_font_params_t params = {0};
-	params.size_in_pt = 12.0f;
-	nf_font_t font = nf_font("Arial", params);
+	params.size_in_pt = 13.0f;
+	nf_font_t font = nf_font("Courier New", params);
 
 	nf_feature_t features[2];
 	features[0].type = NF_FEATURE_ITALIC;
@@ -67,28 +67,39 @@ int main(int argc, char *argv[])
 
 		gen_sample2_str();
 
+		int base_y = 35;
+
 		tigrTime();
-		tigrPrint(screen, tfont, 5, 5, tigrRGB(0xff, 0xff, 0xff), sample2);
+		tigrPrint(screen, tfont, 5, base_y, tigrRGB(0xff, 0xff, 0xff), sample2);
 		float time1 = tigrTime();
 
 		tigrTime();
-		if(nf_print(bitmap2->pix, bitmap2->w, bitmap2->h, font, NULL, 0, sample2) < 0)
+		nf_aabb_t aabb1;
+		if(nf_print(bitmap1->pix, bitmap1->w, bitmap1->h, font,
+					features, 2, &aabb1, sample1) < 0)
 			return -1;
 		float time2 = tigrTime();
 
 		tigrTime();
-		if(nf_print(bitmap1->pix, bitmap1->w, bitmap1->h, font, features, 2, sample1) < 0)
+		nf_aabb_t aabb2;
+		if(nf_print(bitmap2->pix, bitmap2->w, bitmap2->h,
+					font, NULL, 0, &aabb2, sample2) < 0)
 			return -1;
 		float time3 = tigrTime();
 
-		tigrBlitTint2(screen, bitmap2, 5, 25, 0, 0, bitmap2->w, bitmap2->h,
-					  tigrRGBA(0xff,0xff,0xff,(unsigned char)(1.0f*255)));
-
 		// pma
-		tigrBlitTint2(screen, bitmap1, 5, 65, 0, 0, bitmap1->w, bitmap1->h,
+		tigrBlitTint2(screen, bitmap2, 5, base_y + 20,
+					  aabb2.x, aabb2.y, aabb2.w, aabb2.h,
+					  tigrRGBA(0xff,0xff,0xff,(unsigned char)(1.0f*255)));
+		tigrBlitTint2(screen, bitmap1, 5, base_y + 60,
+					  aabb1.x, aabb1.y, aabb1.w, aabb1.h,
 					  tigrRGBA(0xff,0xff,0xff,(unsigned char)(1.0f*255)));
 		// not pma
 		//tigrBlit(screen, bitmap1, 0, 0, 0, 0, bitmap1->w, bitmap1->h);
+
+		tigrPrint(screen, tfont, 5, 5, tigrRGB(0xff, 0xff, 0xff),
+			"tigr font took %f ms, long text took %f ms, short text took %f ms",
+			time1 * 1000.0f, time2 * 1000.0f, time3 * 1000.0f);
 
 		tigrUpdate(screen);
 	}

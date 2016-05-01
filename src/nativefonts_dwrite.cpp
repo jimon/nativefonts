@@ -315,10 +315,9 @@ void nf_free(nf_font_t font)
 	nf_ctx_free();
 }
 
-int nf_print(
-	void * bitmap, uint16_t w, uint16_t h,
+int nf_print(void * bitmap, uint16_t w, uint16_t h,
 	nf_font_t font, nf_feature_t * features, size_t features_count,
-	const char * text, ...)
+	nf_aabb_t * result_rect, const char * text, ...)
 {
 	if(!bitmap)
 	{
@@ -342,6 +341,7 @@ int nf_print(
 	HRESULT hr = 0;
 	D2D1_COLOR_F bg_color = D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f);
 	D2D1_COLOR_F fg_color = D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f);
+	DWRITE_WORD_WRAPPING text_wrap = DWRITE_WORD_WRAPPING_WRAP;
 	DWRITE_TEXT_ALIGNMENT text_alignment = DWRITE_TEXT_ALIGNMENT_LEADING;
 	DWRITE_PARAGRAPH_ALIGNMENT parg_alignment = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
 	D2D1_TEXT_ANTIALIAS_MODE text_aa_mode = D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE;
@@ -385,6 +385,12 @@ int nf_print(
 			break;
 		case NF_FEATURE_ITALIC:
 			layout->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, range);
+			break;
+		case NF_FEATURE_WRAP:
+			text_wrap = DWRITE_WORD_WRAPPING_WRAP;
+			break;
+		case NF_FEATURE_NO_WRAP:
+			text_wrap = DWRITE_WORD_WRAPPING_NO_WRAP;
 			break;
 		case NF_FEATURE_ALIGN_LEFT:
 			text_alignment = DWRITE_TEXT_ALIGNMENT_LEADING;
@@ -439,11 +445,34 @@ int nf_print(
 		}
 	}
 
+	layout->SetWordWrapping(text_wrap);
 	layout->SetTextAlignment(text_alignment);
 	layout->SetParagraphAlignment(parg_alignment);
 	ctx.d2d_rt->SetDpi(ppi_x, ppi_y);
 	ctx.d2d_rt->SetTextAntialiasMode(text_aa_mode);
 	ctx.d2d_brush->SetColor(fg_color);
+
+	// figure our result metrics
+	// TODO does this call actually rasterizes text?
+	DWRITE_TEXT_METRICS text_metrics;
+	layout->GetMetrics(&text_metrics);
+	float clip_x1 = text_metrics.left;
+	float clip_y1 = text_metrics.top;
+	float clip_x2 = text_metrics.left + text_metrics.width;
+	float clip_y2 = text_metrics.top + text_metrics.height;
+	clip_x1 = clip_x1 < 0 ? 0 : (clip_x1 >= w ? w - 1 : clip_x1);
+	clip_y1 = clip_y1 < 0 ? 0 : (clip_y1 >= h ? h - 1 : clip_y1);
+	clip_x2 = clip_x2 < 0 ? 0 : (clip_x2 >= w ? w - 1 : clip_x2);
+	clip_y2 = clip_y2 < 0 ? 0 : (clip_y2 >= h ? h - 1 : clip_y2);
+	float clip_w = clip_x2 - clip_x1 + 1.0f;
+	float clip_h = clip_y2 - clip_y1 + 1.0f;
+	nf_aabb_t aabb;
+	aabb.x = clip_x1;
+	aabb.y = clip_y1;
+	aabb.w = clip_w;
+	aabb.h = clip_h;
+	if(result_rect)
+		*result_rect = aabb;
 
 	// render text
 	ctx.d2d_rt->BeginDraw();
@@ -463,11 +492,12 @@ int nf_print(
 		return -1;
 	}
 
-	for(size_t j = 0; j < h; ++j)
+	for(size_t j = aabb.y; j < aabb.y + aabb.h; ++j)
+		// hardcoded BGRA8 format
 		memcpy(
-			(uint8_t*)bitmap + j * w * 4,
-			(uint8_t*)mapped.pData + j * mapped.RowPitch,
-			w * 4);
+			(uint8_t*)bitmap + (j * w + aabb.x) * 4,
+			(uint8_t*)mapped.pData + j * mapped.RowPitch + aabb.x,
+			aabb.w * 4);
 
 	ctx.d3d_texture2->Unmap(0);
 	return 0;

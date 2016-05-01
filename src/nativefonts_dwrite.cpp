@@ -1,6 +1,8 @@
 
 #include <nativefonts.h>
 
+#ifdef NF_PLATFORM_DWRITE
+
 #ifndef NF_SUPPORT_EXPLAIN_HR
 #define NF_SUPPORT_EXPLAIN_HR 1
 #endif
@@ -13,13 +15,13 @@
 #include <dwrite.h>
 #include <d2d1.h>
 #include <d2d1_1.h>
-//#include <d2d1_1helper.h>
-//#include <wincodec.h>
 #include <stdio.h>
 #if NF_SUPPORT_EXPLAIN_HR
 #include <comdef.h>
 #endif
-#include <cstdlib>
+#include <stdlib.h>
+
+// todo don't define here?
 #pragma comment(lib, "dwrite.lib")
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "D3D10_1.lib")
@@ -45,7 +47,7 @@ void nf_explain_hr(HRESULT hr, const char * msg)
 {
 	#if NF_SUPPORT_EXPLAIN_HR
 	_com_error err(hr);
-	NF_ON_ERROR("%s %s\n", msg, err.ErrorMessage());
+	NF_ERROR("%s %s\n", msg, err.ErrorMessage());
 	#else
 	NF_ON_ERROR("%s\n", msg);
 	#endif
@@ -187,6 +189,9 @@ int nf_ctx_init()
 
 void nf_ctx_free()
 {
+	if(!ctx.reference_counter)
+		return;
+
 	if(--ctx.reference_counter)
 		return;
 
@@ -246,7 +251,7 @@ nf_system_info_t nf_system_info()
 						NULL,
 						(void**)&ctx.d2d_factory)))
 		{
-			NF_ON_ERROR("can't create d2d1 factory\n");
+			NF_ERROR("can't create d2d1 factory\n");
 			ctx.d2d_factory = NULL;
 		}
 	}
@@ -268,292 +273,204 @@ nf_system_info_t nf_system_info()
 
 nf_font_t nf_font(const char * font_name, nf_font_params_t params)
 {
-	//IDWriteTextFormat * format;
-
-	if(nf_ctx_init() < 0)
+	if(nf_ctx_init() < 0 || !font_name)
 		return 0;
 
-	return 0;
+	size_t len = strlen(font_name) + 1;
+	WCHAR * wtext = (WCHAR*)alloca(len * sizeof(WCHAR));
+	size_t wlen = mbstowcs(wtext, font_name, len);
+	if(wlen == (size_t)-1)
+	{
+		NF_ERROR("failed to convert text to wchar, text : '%s'\n", font_name);
+		return 0;
+	}
+
+	IDWriteTextFormat * format = NULL;
+	HRESULT hr = 0;
+	if(FAILED(hr = ctx.dw_factory->CreateTextFormat(
+					wtext,
+					NULL,
+					DWRITE_FONT_WEIGHT_NORMAL, // TODO
+					DWRITE_FONT_STYLE_NORMAL, // TODO
+					DWRITE_FONT_STRETCH_NORMAL, // TODO
+					params.size_in_pt, // TODO maybe pt / 72 * 96 ?
+					L"", // en-us ?
+					&format)))
+	{
+		nf_explain_hr(hr, "can't create text format");
+		return -1;
+	}
+
+	return (uintptr_t)format;
 }
 
 void nf_free(nf_font_t font)
 {
+	if(font)
+	{
+		IDWriteTextFormat * format = (IDWriteTextFormat*)font;
+		format->Release();
+	}
+
 	nf_ctx_free();
 }
 
 int nf_print(
 	void * bitmap, uint16_t w, uint16_t h,
 	nf_font_t font, nf_feature_t * features, size_t features_count,
-	const char * text, ...
-)
+	const char * text, ...)
 {
-	return false;
-}
+	if(!bitmap)
+	{
+		NF_ERROR("can't print with invalid bitmap\n");
+		return -1;
+	}
 
+	if(!font)
+	{
+		NF_ERROR("can't print with invalid font\n");
+		return -1;
+	}
 
-/*
-typedef struct
-{
-	IDWriteFactory * factory;
-	IDWriteTextFormat * format;
-	ID2D1Factory1 * d2d_factory;
+	if(!text)
+	{
+		NF_ERROR("can't print with invalid text\n");
+		return -1;
+	}
 
-	ID3D10Device1 *d3d10_device;
-
-	ID3D10Texture2D * texture;
-	ID3D10Texture2D * texture2;
-
-	IDXGISurface * surface;
-
-	ID2D1RenderTarget * rt;
-	ID2D1SolidColorBrush * solid_brush;
-
-} dwrite_t;
-
-dwrite_t dw;
-
-FLOAT ConvertPointSizeToDIP(FLOAT points)
-{
-	return (points/72.0f)*96.0f;
-}
-
-int nf_init()
-{
+	// figure out text rendering settings
 	HRESULT hr = 0;
+	D2D1_COLOR_F bg_color = D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f);
+	D2D1_COLOR_F fg_color = D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f);
+	DWRITE_TEXT_ALIGNMENT text_alignment = DWRITE_TEXT_ALIGNMENT_LEADING;
+	DWRITE_PARAGRAPH_ALIGNMENT parg_alignment = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
+	D2D1_TEXT_ANTIALIAS_MODE text_aa_mode = D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE;
+	float ppi_x = 0.0f, ppi_y = 0.0f;
 
-	if(FAILED(hr = D3D10CreateDevice1(
-		NULL,
-		D3D10_DRIVER_TYPE_HARDWARE,
-		NULL,
-		D3D10_CREATE_DEVICE_BGRA_SUPPORT,
-		D3D10_FEATURE_LEVEL_9_1,
-		D3D10_1_SDK_VERSION,
-		&dw.d3d10_device)))
-	{
-		printf("can't into d3d10\n");
-		return -1;
-	}
-
-	// Allocate a offscreen D3D surface for D2D to render our 2D content into
-	D3D10_TEXTURE2D_DESC texDesc;
-	texDesc.ArraySize = 1;
-	texDesc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
-	texDesc.CPUAccessFlags = 0;
-	texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	texDesc.Width = 1000;
-	texDesc.Height = 800;
-	texDesc.MipLevels = 1;
-	texDesc.MiscFlags = 0;
-	texDesc.SampleDesc.Count = 1;
-	texDesc.SampleDesc.Quality = 0;
-	texDesc.Usage = D3D10_USAGE_DEFAULT;
-
-	D3D10_TEXTURE2D_DESC texDesc2;
-	texDesc2.ArraySize = 1;
-	texDesc2.BindFlags = 0;
-	texDesc2.CPUAccessFlags = D3D10_CPU_ACCESS_READ | D3D10_CPU_ACCESS_WRITE;
-	texDesc2.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-	texDesc2.Width = 1000;
-	texDesc2.Height = 800;
-	texDesc2.MipLevels = 1;
-	texDesc2.MiscFlags = 0;
-	texDesc2.SampleDesc.Count = 1;
-	texDesc2.SampleDesc.Quality = 0;
-	texDesc2.Usage = D3D10_USAGE_STAGING;
-
-	if(FAILED(hr = dw.d3d10_device->CreateTexture2D(&texDesc, NULL, &dw.texture)))
-	{
-		_com_error err(hr);
-		LPCTSTR errMsg = err.ErrorMessage();
-
-		printf("can't into d3d10 texture %s\n", errMsg);
-		return -1;
-	}
-
-	if(FAILED(hr = dw.d3d10_device->CreateTexture2D(&texDesc2, NULL, &dw.texture2)))
-	{
-		_com_error err(hr);
-		LPCTSTR errMsg = err.ErrorMessage();
-
-		printf("can't into d3d10 texture2 %s\n", errMsg);
-		return -1;
-	}
-
-	if(FAILED(hr = dw.texture->QueryInterface(&dw.surface)))
-	{
-		printf("can't into dxgi surface\n");
-		return -1;
-	}
-
-	if(FAILED(hr = DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED,
-									   //&IID_IDWriteFactory,
-									   __uuidof(IDWriteFactory),
-									   (IUnknown**)(&dw.factory))))
-	{
-		nf_deinit();
-		return -1;
-	}
-
-	if(FAILED(hr = dw.factory->CreateTextFormat(
-		L"Arial",
-		NULL,
-		DWRITE_FONT_WEIGHT_NORMAL,
-		DWRITE_FONT_STYLE_NORMAL,
-		DWRITE_FONT_STRETCH_NORMAL,
-		12.0f,
-		L"", // en-us ?
-		&dw.format)))
-	{
-		nf_deinit();
-		return -1;
-	}
-
-	dw.format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-	dw.format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-
-	D2D1_FACTORY_OPTIONS options;
-	options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
-
-	if(FAILED(hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory1), &options, (void**)&dw.d2d_factory)))
-	{
-		// todo
-		printf("nope1\n");
-		return -1;
-	}
-
-	float dpi_x, dpi_y;
-	dw.d2d_factory->GetDesktopDpi(&dpi_x, &dpi_y);
-
-	D2D1_RENDER_TARGET_PROPERTIES props;
-	props.dpiX = dpi_x;
-	props.dpiY = dpi_y;
-	props.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
-	props.pixelFormat.format = DXGI_FORMAT_UNKNOWN;
-	props.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-	props.type = D2D1_RENDER_TARGET_TYPE_HARDWARE;
-	props.usage = D2D1_RENDER_TARGET_USAGE_NONE;
-
-	if(FAILED(hr = dw.d2d_factory->CreateDxgiSurfaceRenderTarget(dw.surface, props, &dw.rt)))
-	{
-		_com_error err(hr);
-		LPCTSTR errMsg = err.ErrorMessage();
-
-		printf("failed2 %s\n", errMsg);
-		return -1;
-	}
-
-
-	if(FAILED(hr = dw.rt->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f), &dw.solid_brush)))
-	{
-		printf("failed to create d2d brush");
-		return -1;
-	}
-
-	//dw.rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
-	dw.rt->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE);
-
-	return 0;
-}
-
-int nf_deinit()
-{
-//	if(dw.format)
-//	{
-//		IDWriteTextFormat_Release(dw.format);
-//		dw.format = NULL;
-//	}
-
-//	if(dw.factory)
-//	{
-//		IDWriteFactory_Release(dw.factory);
-//		dw.factory = NULL;
-//	}
-
-	return 0;
-}
-
-int nf_draw(Tigr * bitmap, const char * text)
-{
-	HRESULT hr;
-
-	dw.rt->BeginDraw();
-
-	//dw.rt->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
-	dw.rt->Clear(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+	ctx.d2d_factory->GetDesktopDpi(&ppi_x, &ppi_y);
 
 	size_t len = strlen(text) + 1;
 	WCHAR * wtext = (WCHAR*)alloca(len * sizeof(WCHAR));
-	size_t res = std::mbstowcs(wtext, text, len);
-	if(res == (size_t)-1)
+	size_t wlen = mbstowcs(wtext, text, len);
+	if(wlen == (size_t)-1)
 	{
-		printf("failed to convert text to wchar, text : '%s'", text);
+		NF_ERROR("failed to convert text to wchar, text : '%s'\n", text);
 		return -1;
 	}
 
-	//D2D1_RECT_F rect = {0.0f, 0.0f, (float)bitmap->w, (float)bitmap->h};
-	//dw.rt->DrawTextA(wtext, res, dw.format, rect, dw.solid_brush);
-
-	//dw.rt->DrawTextLayout(
-
-	IDWriteTextLayout * layout;
-	if(FAILED(hr = dw.factory->CreateTextLayout(wtext, res, dw.format, bitmap->w, bitmap->h, &layout)))
+	IDWriteTextLayout * layout = NULL;
+	if(FAILED(hr = ctx.dw_factory->CreateTextLayout(
+					wtext, wlen,
+					(IDWriteTextFormat*)font,
+					w, h,
+					&layout)))
 	{
+		nf_explain_hr(hr, "can't create dwrite text layout");
 		return -1;
 	}
 
-	DWRITE_TEXT_RANGE t;
-	t.startPosition = 0;
-	t.length = res;
-	layout->SetUnderline(true, t);
+	for(size_t i = 0; i < features_count; ++i)
+	{
+		DWRITE_TEXT_RANGE range;
+		range.startPosition = features[i].range.start;
+		range.length = features[i].range.end - features[i].range.start + 1;
 
-	dw.rt->DrawTextLayout(D2D1::Point2F(), layout, dw.solid_brush);
+		switch(features[i].type)
+		{
+		case NF_FEATURE_BOLD:
+			layout->SetFontWeight(DWRITE_FONT_WEIGHT_BOLD, range);
+			break;
+		case NF_FEATURE_UNDERLINE:
+			layout->SetUnderline(true, range);
+			break;
+		case NF_FEATURE_ITALIC:
+			layout->SetFontStyle(DWRITE_FONT_STYLE_ITALIC, range);
+			break;
+		case NF_FEATURE_ALIGN_LEFT:
+			text_alignment = DWRITE_TEXT_ALIGNMENT_LEADING;
+			break;
+		case NF_FEATURE_ALIGN_CENTER:
+			text_alignment = DWRITE_TEXT_ALIGNMENT_CENTER;
+			break;
+		case NF_FEATURE_ALIGN_RIGHT:
+			text_alignment = DWRITE_TEXT_ALIGNMENT_TRAILING;
+			break;
+		case NF_FEATURE_ALIGN_JUSTIFIED:
+			text_alignment = DWRITE_TEXT_ALIGNMENT_JUSTIFIED;
+			break;
+		case NF_FEATURE_ALIGN_PARAGRAPH_LEFT:
+			parg_alignment = DWRITE_PARAGRAPH_ALIGNMENT_NEAR;
+			break;
+		case NF_FEATURE_ALIGN_PARAGRAPH_CENTER:
+			parg_alignment = DWRITE_PARAGRAPH_ALIGNMENT_CENTER;
+			break;
+		case NF_FEATURE_ALIGN_PARAGRAPH_RIGHT:
+			parg_alignment = DWRITE_PARAGRAPH_ALIGNMENT_FAR;
+			break;
+		case NF_FEATURE_AA_DISABLED:
+			text_aa_mode = D2D1_TEXT_ANTIALIAS_MODE_ALIASED;
+			break;
+		case NF_FEATURE_AA_WIN_CLEARTYPE:
+			text_aa_mode = D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE;
+			break;
+		case NF_FEATURE_AA_WIN_GREYSCALE:
+			text_aa_mode = D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE;
+			break;
+		case NF_FEATURE_PPI:
+			ppi_x = features[i].ppi.x;
+			ppi_y = features[i].ppi.y;
+			break;
+		case NF_FEATURE_COLOR_BG:
+			bg_color = D2D1::ColorF(
+				features[i].color.r,
+				features[i].color.g,
+				features[i].color.b,
+				features[i].color.a);
+			break;
+		case NF_FEATURE_COLOR_TEXT:
+			fg_color = D2D1::ColorF(
+				features[i].color.r,
+				features[i].color.g,
+				features[i].color.b,
+				features[i].color.a);
+			break;
+		default:
+			break;
+		}
+	}
 
-	//rt->draw
+	layout->SetTextAlignment(text_alignment);
+	layout->SetParagraphAlignment(parg_alignment);
+	ctx.d2d_rt->SetDpi(ppi_x, ppi_y);
+	ctx.d2d_rt->SetTextAntialiasMode(text_aa_mode);
+	ctx.d2d_brush->SetColor(fg_color);
 
-	dw.rt->EndDraw();
+	// render text
+	ctx.d2d_rt->BeginDraw();
+	ctx.d2d_rt->Clear(bg_color);
+	ctx.d2d_rt->DrawTextLayout(D2D1::Point2F(), layout, ctx.d2d_brush);
+	ctx.d2d_rt->EndDraw();
 	layout->Release();
+	layout = NULL;
 
+	// read texture from d3d
+	ctx.d3d_device->CopyResource(ctx.d3d_texture2, ctx.d3d_texture1);
 
-
-	dw.d3d10_device->CopyResource(dw.texture2, dw.texture);
-
-
-	D3D10_MAPPED_TEXTURE2D mapped;
-	if(FAILED(hr = dw.texture2->Map(0, D3D10_MAP_READ, 0, &mapped)))
+	D3D10_MAPPED_TEXTURE2D mapped = {0};
+	if(FAILED(hr = ctx.d3d_texture2->Map(0, D3D10_MAP_READ, 0, &mapped)))
 	{
-		_com_error err(hr);
-		LPCTSTR errMsg = err.ErrorMessage();
-
-		printf("failed map %s\n", errMsg);
+		nf_explain_hr(hr, "can't map d3d texture");
 		return -1;
 	}
 
-	memset(bitmap->pix, 0, bitmap->w * bitmap->h * 4);
-	for(size_t j = 0; j < bitmap->h; ++j)
-		memcpy((char*)bitmap->pix + j * bitmap->w * 4, (char*)mapped.pData + j * mapped.RowPitch, bitmap->w * 4);
+	for(size_t j = 0; j < h; ++j)
+		memcpy(
+			(uint8_t*)bitmap + j * w * 4,
+			(uint8_t*)mapped.pData + j * mapped.RowPitch,
+			w * 4);
 
-	dw.texture2->Unmap(0);
-
+	ctx.d3d_texture2->Unmap(0);
 	return 0;
 }
-*/
 
-// dynamic linkage stuff
-//HMODULE lib;
-//	typedef HRESULT (WINAPI * create_fn_t)(
-//		_In_ DWRITE_FACTORY_TYPE factoryType,
-//		_In_ REFIID iid,
-//		_Out_ IUnknown ** factory
-//	);
-//	create_fn_t create_factory = NULL;
-//dw.lib = LoadLibraryA("Dwrite.dll");
-//if(!dw.lib)
-//	return -1;
-//create_factory = (create_fn_t)GetProcAddress(dw.lib, "DWriteCreateFactory");
-//if(!create_factory)
-//{
-//	nf_deinit();
-//	return -1;
-//}
-//if (dw.lib)
-//FreeLibrary(dw.lib);
+#endif

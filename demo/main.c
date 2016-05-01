@@ -1,8 +1,9 @@
-#include "tigr.h"
+// demo of nativefonts
 
+#include "tigr.h"
 #include <nativefonts.h>
 
-const char * sample =
+const char * sample1 =
 "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras convallis elementum nunc vitae malesuada. Sed vitae finibus nunc. Mauris ipsum odio, imperdiet id ultricies nec, tristique sed mauris. Integer venenatis lorem id lectus lacinia pulvinar. Maecenas molestie ligula ultrices eros sodales, vel hendrerit elit lacinia. Suspendisse in magna dui. Quisque a arcu nisl.\n"
 "\n"
 "Phasellus elementum aliquet dolor non convallis. Pellentesque et ligula ante. Quisque eu tristique eros. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. In at ex a metus dapibus hendrerit id id leo. Maecenas sagittis ipsum ac nibh sagittis, vel dictum lectus scelerisque. Phasellus quis lacus in dui placerat hendrerit. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Pellentesque mattis tincidunt risus eget venenatis. Ut pulvinar vehicula neque, et mattis libero molestie ut. Ut quis ornare orci. Ut eu arcu nisl. Vestibulum suscipit iaculis augue sed ultrices.\n"
@@ -33,83 +34,70 @@ const char * sample =
 "\n"
 "Nullam suscipit aliquet urna eu commodo. Praesent in sem vel odio ultrices bibendum a posuere sem. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Cras ut lorem sagittis arcu congue faucibus non vel tellus. Quisque sagittis, est dapibus suscipit lacinia, leo sem semper sem, quis pretium lacus urna vitae sapien. Aliquam in facilisis orci. Morbi interdum magna posuere rhoncus aliquam. Sed viverra pulvinar tortor, tempus consequat dui tempor vel. Phasellus orci dolor, malesuada ac augue sit amet, interdum consectetur enim. In venenatis elit sit amet est ultrices bibendum. Donec et dictum ipsum. Nunc commodo mattis dui eget malesuada. Nam tincidunt sed nulla in vulputate. Nullam vestibulum libero blandit ipsum euismod eleifend. Phasellus tristique urna sit amet risus condimentum aliquet.\n";
 
-#include <stdint.h>
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+char sample2[256] = {0};
 
-LARGE_INTEGER qpc_freq;
-
-void qpc_init()
+void gen_sample2_str()
 {
-	QueryPerformanceFrequency(&qpc_freq);
+	for(size_t i = 0; i < sizeof(sample2) - 1; ++i)
+		sample2[i] = rand() % ('z' - 'a' + 1) + 'a';
+	sample2[sizeof(sample2) - 1] = '\0';
 }
-
-uint64_t qpc()
-{
-	LARGE_INTEGER time;
-	QueryPerformanceCounter(&time);
-	return time.QuadPart;
-}
-
-double qpc_ms(uint64_t time)
-{
-	return (double)(time * 1000) / (double)qpc_freq.QuadPart;
-}
-
-
-
-
 
 int main(int argc, char *argv[])
 {
-
-	qpc_init();
-
-	//int state = nf_init();
-	//printf("state %i\n", state);
-
-	//if(state < 0)
-	//	return -1;
-
-	nf_system_info_t info = nf_system_info();
-
-	printf("wut %f\n", info.ppi_x);
+	Tigr * screen = tigrWindow(1000, 800, "Hello", 0);
+	Tigr * bitmap1 = tigrBitmap(screen->w, screen->h);
+	Tigr * bitmap2 = tigrBitmap(screen->w, screen->h);
 
 	nf_font_params_t params = {0};
 	params.size_in_pt = 12.0f;
 	nf_font_t font = nf_font("Arial", params);
 
-	Tigr *screen = tigrWindow(1000, 800, "Hello", 0);
-	Tigr *bitmap = tigrBitmap(screen->w, screen->h);
+	nf_feature_t features[2];
+	features[0].type = NF_FEATURE_ITALIC;
+	features[0].range.start = 6;
+	features[0].range.end = 10;
+	features[1].type = NF_FEATURE_UNDERLINE;
+	features[1].range.start = 12;
+	features[1].range.end = 16;
 
-	while (!tigrClosed(screen) && !tigrKeyDown(screen, TK_ESCAPE))
+	while(!tigrClosed(screen) && !tigrKeyDown(screen, TK_ESCAPE))
 	{
 		tigrClear(screen, tigrRGB(0x80, 0x90, 0xa0));
-		tigrPrint(screen, tfont, 120, 110, tigrRGB(0xff, 0xff, 0xff), "Hello, world.");
 
-		uint64_t t1 = qpc();
-		//if(nf_draw(bitmap, sample) < 0)
-		//	return -1;
+		gen_sample2_str();
 
-		if(nf_print(bitmap->pix, bitmap->w, bitmap->h, font, NULL, 0, sample) < 0)
+		tigrTime();
+		tigrPrint(screen, tfont, 5, 5, tigrRGB(0xff, 0xff, 0xff), sample2);
+		float time1 = tigrTime();
+
+		tigrTime();
+		if(nf_print(bitmap2->pix, bitmap2->w, bitmap2->h, font, NULL, 0, sample2) < 0)
 			return -1;
+		float time2 = tigrTime();
 
-		t1 = qpc() - t1;
+		tigrTime();
+		if(nf_print(bitmap1->pix, bitmap1->w, bitmap1->h, font, features, 2, sample1) < 0)
+			return -1;
+		float time3 = tigrTime();
 
-		//printf("took %f\n", qpc_ms(t1));
+		tigrBlitTint2(screen, bitmap2, 5, 25, 0, 0, bitmap2->w, bitmap2->h,
+					  tigrRGBA(0xff,0xff,0xff,(unsigned char)(1.0f*255)));
 
-		//tigrBlitAlpha(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h, 1.0f);
-		tigrBlitTint2(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h, tigrRGBA(0xff,0xff,0xff,(unsigned char)(1.0f*255)));
-		//tigrBlit(screen, bitmap, 0, 0, 0, 0, bitmap->w, bitmap->h);
+		// pma
+		tigrBlitTint2(screen, bitmap1, 5, 65, 0, 0, bitmap1->w, bitmap1->h,
+					  tigrRGBA(0xff,0xff,0xff,(unsigned char)(1.0f*255)));
+		// not pma
+		//tigrBlit(screen, bitmap1, 0, 0, 0, 0, bitmap1->w, bitmap1->h);
 
 		tigrUpdate(screen);
 	}
 
-	tigrFree(bitmap);
-	tigrFree(screen);
-
 	nf_free(font);
 
-	//nf_deinit();
+	tigrFree(bitmap1);
+	tigrFree(bitmap2);
+	tigrFree(screen);
+
 	return 0;
 }

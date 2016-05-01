@@ -1,3 +1,6 @@
+// nativefonts
+// MIT license
+//
 // codestyle :
 // - C99
 // - 80 columns max
@@ -13,8 +16,21 @@
 extern "C" {
 #endif
 
-#ifndef NF_ON_ERROR
-#define NF_ON_ERROR(msg, ...) fprintf(stderr, msg, __VA_ARGS__)
+// --------------------------------------------------------------- configuration
+
+// todo proper config
+#define NF_PLATFORM_DWRITE
+
+#ifndef NF_MAX_WIDTH
+#define NF_MAX_WIDTH 2048
+#endif
+
+#ifndef NF_MAX_HEIGHT
+#define NF_MAX_HEIGHT 2048
+#endif
+
+#ifndef NF_ERROR
+#define NF_ERROR(msg, ...) fprintf(stderr, msg, __VA_ARGS__)
 #endif
 
 // ------------------------------------------------------------- font parameters
@@ -48,14 +64,6 @@ typedef struct {
 } nf_font_params_t;
 
 // ---------------------------------------------------------- system information
-#ifndef NF_MAX_WIDTH
-#define NF_MAX_WIDTH 2048
-#endif
-
-#ifndef NF_MAX_HEIGHT
-#define NF_MAX_HEIGHT 2048
-#endif
-
 typedef enum {
 	NF_BITMAP_B8G8R8A8_UNORM_PMA = 0,
 } nf_bitmap_t;
@@ -76,6 +84,7 @@ typedef enum {
 	NF_FEATURE_ITALIC,
 
 	// align features are applied to whole text
+	// defaults are left, left
 	NF_FEATURE_ALIGN_LEFT,
 	NF_FEATURE_ALIGN_CENTER,
 	NF_FEATURE_ALIGN_RIGHT,
@@ -85,20 +94,31 @@ typedef enum {
 	NF_FEATURE_ALIGN_PARAGRAPH_RIGHT,
 
 	// antialiasing is applied to whole text
-	NF_FEATURE_AA_WIN_CLEARTYPE, // cleartype will not use alpha channel
-	NF_FEATURE_AA_WIN_GREYSCALE, // greyscale uses PMA
+	NF_FEATURE_AA_DISABLED,
+	// default on Windows, greyscale uses BGRA as premultiplied alpha
+	NF_FEATURE_AA_WIN_GREYSCALE,
+	// cleartype will not use alpha channel, so treat bitmap as BGR
+	NF_FEATURE_AA_WIN_CLEARTYPE,
 
 	// ppi is applied to whole text
-	NF_FEATURE_PPI_X,
-	NF_FEATURE_PPI_Y,
+	// default is system defined, see system info
+	NF_FEATURE_PPI,
+
+	// color is applied to whole text (todo?)
+	NF_FEATURE_COLOR_BG,   // default is 0,0,0,0
+	NF_FEATURE_COLOR_TEXT, // default is 1,1,1,1
 
 	NF_FEATURE_MAX = 0xff
 } nf_feature_type_t;
 
 typedef struct {
 	nf_feature_type_t type;
-	size_t start, end;
-	float value;
+	union
+	{
+		struct { size_t start, end; } range;
+		struct { float r, g, b, a; } color;
+		struct { float x, y; } ppi;
+	};
 } nf_feature_t;
 
 // ------------------------------------------------------------------- functions
@@ -114,8 +134,7 @@ void nf_free(nf_font_t font);
 int nf_print(
 	void * bitmap, uint16_t w, uint16_t h,
 	nf_font_t font, nf_feature_t * features, size_t features_count,
-	const char * text, ...
-);
+	const char * text, ...);
 
 #ifdef __cplusplus
 }

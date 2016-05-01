@@ -45,12 +45,12 @@ void gen_sample2_str()
 
 int main(int argc, char *argv[])
 {
-	Tigr * screen = tigrWindow(800, 600, "Native fonts demo", 0);
+	Tigr * screen = tigrWindow(800, 600, "Native fonts demo", TIGR_RETINA);
 	Tigr * bitmap1 = tigrBitmap(screen->w, screen->h);
 	Tigr * bitmap2 = tigrBitmap(screen->w, screen->h);
 
 	nf_font_params_t params = {0};
-	params.size_in_pt = 13.0f;
+	params.size_in_pt = screen->w > 800 ? 26.0f : 13.0f; // check for retina
 	nf_font_t font = nf_font("Arial", params);
 
 	nf_feature_t features[2];

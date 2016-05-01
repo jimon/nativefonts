@@ -38,6 +38,40 @@ void nf_free(nf_font_t font)
 		CFRelease((CTFontRef)font);
 }
 
+// based on http://stackoverflow.com/questions/8377496/how-to-get-the-real-height-of-text-drawn-on-a-ctframe
+CGSize nf_frame_size(CTFrameRef frame)
+{
+	CFArrayRef lines = CTFrameGetLines(frame);
+	CFIndex numLines = CFArrayGetCount(lines);
+	CGFloat maxWidth = 0.0f;
+
+	for(CFIndex index = 0; index < numLines; index++)
+	{
+		CTLineRef line = (CTLineRef)CFArrayGetValueAtIndex(lines, index);
+		CGFloat width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
+
+		if(width > maxWidth)
+			maxWidth = width;
+	}
+
+	CGFloat ascent = 0.0f, descent = 0.0f, leading = 0.0f;
+	CTLineGetTypographicBounds((CTLineRef)CFArrayGetValueAtIndex(lines, 0), &ascent,  &descent, &leading);
+	CGFloat firstLineHeight = ascent + descent + leading;
+
+	CTLineGetTypographicBounds((CTLineRef)CFArrayGetValueAtIndex(lines, numLines - 1), &ascent,  &descent, &leading);
+	CGFloat lastLineHeight  = ascent + descent + leading;
+
+	CGPoint firstLineOrigin;
+	CTFrameGetLineOrigins(frame, CFRangeMake(0, 1), &firstLineOrigin);
+
+	CGPoint lastLineOrigin;
+	CTFrameGetLineOrigins(frame, CFRangeMake(numLines - 1, 1), &lastLineOrigin);
+
+	CGFloat textHeight = abs(firstLineOrigin.y - lastLineOrigin.y) + firstLineHeight + lastLineHeight;
+
+	return CGSizeMake(maxWidth, textHeight);
+}
+
 int nf_print(
 	void * bitmap, uint16_t w, uint16_t h,
 	nf_font_t font, nf_feature_t * features, size_t features_count,
@@ -80,23 +114,21 @@ int nf_print(
 	CGContextClearRect(ctx, CGRectMake(0.0, 0.0, w, h));
 
 	// Draw the text
-	//CGFloat x = 0.0;
-	//CGFloat y = descent;
 	CGContextSetTextPosition(ctx, 0.0, 0.0);
 	CTFrameDraw(frame, ctx);
 
 	CFRelease(ctx);
-	CFRelease(frame);
 
 	if(result_rect)
 	{
+		CGSize size = nf_frame_size(frame);
 		result_rect->x = 0;
 		result_rect->y = 0;
-		result_rect->w = w;
-		result_rect->h = h;
+		result_rect->w = size.width;
+		result_rect->h = size.height;
 	}
 
-
+	CFRelease(frame);
 	return 0;
 }
 

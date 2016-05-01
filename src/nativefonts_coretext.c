@@ -44,7 +44,7 @@ int nf_print(
 	nf_aabb_t * result_rect, const char * text, ...)
 {
 	CGColorSpaceRef rgbColorSpace = CGColorSpaceCreateDeviceRGB();
-	CGFloat components[] = { 1.0, 0.0, 0.0, 1.0 };
+	CGFloat components[] = { 1.0, 1.0, 1.0, 1.0 };
 	CGColorRef red = CGColorCreate(rgbColorSpace, components);
 	CGColorSpaceRelease(rgbColorSpace);
 
@@ -73,7 +73,7 @@ int nf_print(
 	//CTFrameGet
 
 	CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-	CGContextRef ctx = CGBitmapContextCreate(bitmap, w, h, 8, w * 4, space, kCGImageAlphaPremultipliedLast);
+	CGContextRef ctx = CGBitmapContextCreate(bitmap, w, h, 8, w * 4, space, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
 	CGColorSpaceRelease(space);
 	//CGContextSetRGBFillColor(ctx, 0.0, 0.0, 0.0, 1.0);
 	//CGContextFillRect(ctx, CGRectMake(0.0, 0.0, w, h));

@@ -285,14 +285,62 @@ nf_font_t nf_font(const char * font_name, nf_font_params_t params)
 		return 0;
 	}
 
+	DWRITE_FONT_WEIGHT weight = DWRITE_FONT_WEIGHT_NORMAL;
+	switch(params.weight)
+	{
+	case NF_WEIGHT_NORMAL:
+		weight = DWRITE_FONT_WEIGHT_NORMAL;
+		break;
+	case NF_WEIGHT_BOLD:
+		weight = DWRITE_FONT_WEIGHT_BOLD;
+		break;
+	case NF_WEIGHT_LIGHT:
+		weight = DWRITE_FONT_WEIGHT_LIGHT;
+		break;
+	default:
+		break;
+	}
+
+	DWRITE_FONT_STYLE style = DWRITE_FONT_STYLE_NORMAL;
+	switch(params.style)
+	{
+	case NF_STYLE_NORMAL:
+		style = DWRITE_FONT_STYLE_NORMAL;
+		break;
+	case NF_STYLE_OBLIQUE:
+		style = DWRITE_FONT_STYLE_OBLIQUE;
+		break;
+	case NF_STYLE_ITALIC:
+		style = DWRITE_FONT_STYLE_ITALIC;
+		break;
+	default:
+		break;
+	}
+
+	DWRITE_FONT_STRETCH stretch = DWRITE_FONT_STRETCH_NORMAL;
+	switch(params.stretch)
+	{
+	case NF_STRETCH_NORMAL:
+		stretch = DWRITE_FONT_STRETCH_NORMAL;
+		break;
+	case NF_STRETCH_EXPANDED:
+		stretch = DWRITE_FONT_STRETCH_EXPANDED;
+		break;
+	case NF_STRETCH_CONDENSED:
+		stretch = DWRITE_FONT_STRETCH_CONDENSED;
+		break;
+	default:
+		break;
+	}
+
 	IDWriteTextFormat * format = NULL;
 	HRESULT hr = 0;
 	if(FAILED(hr = ctx.dw_factory->CreateTextFormat(
 					wtext,
 					NULL,
-					DWRITE_FONT_WEIGHT_NORMAL, // TODO
-					DWRITE_FONT_STYLE_NORMAL, // TODO
-					DWRITE_FONT_STRETCH_NORMAL, // TODO
+					weight,
+					style,
+					stretch,
 					params.size_in_pt, // TODO maybe pt / 72 * 96 ?
 					L"", // en-us ?
 					&format)))

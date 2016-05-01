@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 
 	nf_font_params_t params = {0};
 	params.size_in_pt = 13.0f;
-	nf_font_t font = nf_font("Courier New", params);
+	nf_font_t font = nf_font("Arial", params);
 
 	nf_feature_t features[2];
 	features[0].type = NF_FEATURE_ITALIC;

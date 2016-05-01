@@ -4,11 +4,12 @@ filter system: Windows
 	ldflags += /SUBSYSTEM:WINDOWS
 	libs += Opengl32 Gdi32 d3d9 User32 Shell32
 filter system: Darwin
-	frameworks += OpenGL Cocoa
+	frameworks += OpenGL Cocoa CoreText
 
 includedirs += . demo src
 defines += TIGR_DO_NOT_PRESERVE_WINDOW_POSITION
 
 build objects(build/**/*): auto **/*.c | **/*.h
 build objects(build/**/*): auto **/*.cpp | **/*.h
-build application(build/demo): auto objects(build/**/*)
+build objects(build/**/*): cc **/*.m | **/*.h
+build application(build/demo_app): auto objects(build/**/*)

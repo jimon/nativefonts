@@ -11,6 +11,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,7 +20,12 @@ extern "C" {
 // --------------------------------------------------------------- configuration
 
 // todo proper config
+#ifdef _WIN32
 #define NF_PLATFORM_DWRITE
+#endif
+#ifdef __APPLE__
+#define NF_PLATFORM_CORETEXT
+#endif
 
 #ifndef NF_MAX_WIDTH
 #define NF_MAX_WIDTH 2048

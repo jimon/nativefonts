@@ -45,7 +45,7 @@ void gen_sample2_str()
 
 int main(int argc, char *argv[])
 {
-	Tigr * screen = tigrWindow(1000, 800, "Native fonts demo", 0);
+	Tigr * screen = tigrWindow(800, 600, "Native fonts demo", 0);
 	Tigr * bitmap1 = tigrBitmap(screen->w, screen->h);
 	Tigr * bitmap2 = tigrBitmap(screen->w, screen->h);
 

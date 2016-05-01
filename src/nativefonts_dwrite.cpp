@@ -26,8 +26,6 @@
 
 #pragma comment(lib, "dwrite.lib")
 #pragma comment(lib, "d2d1.lib")
-//#pragma comment(lib, "Ole32.lib")
-//#pragma comment(lib, "Windowscodecs.lib")
 #pragma comment(lib, "D3D10_1.lib")
 
 typedef struct
@@ -35,11 +33,8 @@ typedef struct
 	IDWriteFactory * factory;
 	IDWriteTextFormat * format;
 	ID2D1Factory1 * d2d_factory;
-	//IWICImagingFactory * wic_factory;
 
 	ID3D10Device1 *d3d10_device;
-
-	IDXGIDevice *  DXGI_device;
 
 	ID3D10Texture2D * texture;
 	ID3D10Texture2D * texture2;
@@ -62,7 +57,6 @@ int nf_init()
 {
 	HRESULT hr = 0;
 
-
 	if(FAILED(hr = D3D10CreateDevice1(
 		NULL,
 		D3D10_DRIVER_TYPE_HARDWARE,
@@ -75,13 +69,6 @@ int nf_init()
 		printf("can't into d3d10\n");
 		return -1;
 	}
-
-	if(FAILED(hr = dw.d3d10_device->QueryInterface(__uuidof(IDXGIDevice), (void **)&dw.DXGI_device)))
-	{
-		printf("can't into dxgi\n");
-		return -1;
-	}
-
 
 	// Allocate a offscreen D3D surface for D2D to render our 2D content into
 	D3D10_TEXTURE2D_DESC texDesc;
@@ -168,8 +155,8 @@ int nf_init()
 		return -1;
 	}
 
-	//dw.format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-	//dw.format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+	dw.format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
+	dw.format->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 
 	D2D1_FACTORY_OPTIONS options;
 	options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;

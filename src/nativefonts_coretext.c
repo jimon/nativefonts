@@ -21,14 +21,34 @@ nf_system_info_t nf_system_info()
 
 nf_font_t nf_font(const char * font_name, nf_font_params_t params)
 {
-	CFStringRef font_name_ref = CFStringCreateWithCString(
-									NULL, font_name, kCFStringEncodingUTF8);
-
-	CTFontRef font = CTFontCreateWithName(
-						 font_name_ref, params.size_in_pt, nil);
-
 	// TODO traits ?
-	return font;
+
+	if(font_name)
+	{
+		CFStringRef font_name_ref = CFStringCreateWithCString(
+			NULL,
+			font_name,
+			kCFStringEncodingUTF8
+		);
+
+		CTFontRef font = CTFontCreateWithName(
+			font_name_ref,
+			params.size_in_pt,
+			nil
+		);
+
+		return (nf_font_t)font;
+	}
+	else
+	{
+		CTFontRef font = CTFontCreateUIFontForLanguage(
+			kCTFontUIFontUser,
+			params.size_in_pt,
+			nil
+		);
+
+		return (nf_font_t)font;
+	}
 }
 
 void nf_free(nf_font_t font)
@@ -38,13 +58,17 @@ void nf_free(nf_font_t font)
 }
 
 // based on stackoverflow
-CGSize nf_frame_size(CTFrameRef frame)
+static CGSize nf_frame_size(CTFrameRef frame)
 {
 	CFArrayRef lines = CTFrameGetLines(frame);
 	CFIndex numLines = CFArrayGetCount(lines);
+
+	if(numLines <= 0)
+		return CGSizeMake(0.0f, 0.0f);
+
 	CGFloat maxWidth = 0.0f;
 
-	for(CFIndex index = 0; index < numLines; index++)
+	for(CFIndex index = 0; index < numLines; ++index)
 	{
 		CTLineRef line = (CTLineRef)CFArrayGetValueAtIndex(lines, index);
 		CGFloat width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
@@ -54,14 +78,13 @@ CGSize nf_frame_size(CTFrameRef frame)
 	}
 
 	CGFloat ascent = 0.0f, descent = 0.0f, leading = 0.0f;
-	CTLineGetTypographicBounds((CTLineRef)CFArrayGetValueAtIndex(lines, 0),
-							   &ascent,  &descent, &leading);
-	CGFloat firstLineHeight = ascent + descent + leading;
-
 	CTLineGetTypographicBounds(
-				(CTLineRef)CFArrayGetValueAtIndex(lines, numLines - 1),
-				&ascent,  &descent, &leading);
-	CGFloat lastLineHeight  = ascent + descent + leading;
+		(CTLineRef)CFArrayGetValueAtIndex(lines, numLines - 1),
+		&ascent,
+		&descent,
+		&leading
+	);
+	CGFloat lastLineHeight = ascent + descent + leading;
 
 	CGPoint firstLineOrigin;
 	CTFrameGetLineOrigins(frame, CFRangeMake(0, 1), &firstLineOrigin);
@@ -69,8 +92,9 @@ CGSize nf_frame_size(CTFrameRef frame)
 	CGPoint lastLineOrigin;
 	CTFrameGetLineOrigins(frame, CFRangeMake(numLines - 1, 1), &lastLineOrigin);
 
-	CGFloat textHeight = abs(firstLineOrigin.y - lastLineOrigin.y) +
-							firstLineHeight + lastLineHeight;
+	// TODO verify this for all directions
+	CGFloat textHeight = fabs(firstLineOrigin.y - lastLineOrigin.y) +
+							lastLineHeight;
 
 	return CGSizeMake(maxWidth, textHeight);
 }
@@ -78,52 +102,76 @@ CGSize nf_frame_size(CTFrameRef frame)
 int nf_print(
 	void * bitmap, uint16_t w, uint16_t h,
 	nf_font_t font, nf_feature_t * features, size_t features_count,
-	nf_aabb_t * result_rect, const char * text, ...)
+	nf_aabb_t * result_rect, const char * text)
 {
 	CGColorSpaceRef rgbColorSpace = CGColorSpaceCreateDeviceRGB();
 	CGFloat components[] = {1.0, 1.0, 1.0, 1.0};
-	CGColorRef red = CGColorCreate(rgbColorSpace, components);
+	CGColorRef white = CGColorCreate(rgbColorSpace, components);
 	CGColorSpaceRelease(rgbColorSpace);
 
 	CFStringRef string_ref = CFStringCreateWithCString(
-								 NULL, text, kCFStringEncodingUTF8);
+		NULL,
+		text,
+		kCFStringEncodingUTF8
+	);
+
+	if(!string_ref)
+		return 0;
+
 	const void * keys[2] =
 	{
 		kCTFontAttributeName,
 		kCTForegroundColorAttributeName
+		// TODO support features
 	};
 	const void * values[2] =
 	{
-		font,
-		red
+		(const void*)font,
+		white
 	};
 	CFDictionaryRef dict_ref = CFDictionaryCreate(
-								NULL, keys, values, 2,
-								&kCFCopyStringDictionaryKeyCallBacks,
-								&kCFTypeDictionaryValueCallBacks);
+		NULL,
+		keys,
+		values,
+		2,
+		&kCFCopyStringDictionaryKeyCallBacks,
+		&kCFTypeDictionaryValueCallBacks
+	);
 	CFAttributedStringRef text_ref = CFAttributedStringCreate(
-										NULL, string_ref, dict_ref);
+		NULL,
+		string_ref,
+		dict_ref
+	);
 	CFRelease(string_ref);
 	CFRelease(dict_ref);
-	CGColorRelease(red);
+	CGColorRelease(white);
 
 	CGMutablePathRef path = CGPathCreateMutable();
 	CGRect bounds = CGRectMake(0.0, 0.0, w, h);
 	CGPathAddRect(path, NULL, bounds);
 
 	CTFramesetterRef framesetter = CTFramesetterCreateWithAttributedString(
-										text_ref);
+		text_ref
+	);
 	CFRelease(text_ref);
-	CTFrameRef frame = CTFramesetterCreateFrame(framesetter,
-												CFRangeMake(0, 0), path, NULL);
+	CTFrameRef frame = CTFramesetterCreateFrame(
+		framesetter,
+		CFRangeMake(0, 0),
+		path,
+		NULL
+	);
 	CFRelease(framesetter);
 	CFRelease(path);
 
 	CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
 	CGContextRef ctx = CGBitmapContextCreate(
-						bitmap, w, h, 8, w * 4, space,
-						kCGImageAlphaPremultipliedFirst |
-							kCGBitmapByteOrder32Little);
+		bitmap,
+		w,
+		h,
+		8,
+		w * 4,
+		space,
+		kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
 	CGColorSpaceRelease(space);
 	//CGContextSetRGBFillColor(ctx, 0.0, 0.0, 0.0, 1.0);
 	//CGContextFillRect(ctx, CGRectMake(0.0, 0.0, w, h));

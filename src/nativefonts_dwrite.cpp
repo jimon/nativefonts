@@ -273,8 +273,11 @@ nf_system_info_t nf_system_info()
 
 nf_font_t nf_font(const char * font_name, nf_font_params_t params)
 {
-	if(nf_ctx_init() < 0 || !font_name)
+	if(nf_ctx_init() < 0)
 		return 0;
+
+	if(!font_name)
+		font_name = "Segoe UI";
 
 	size_t len = strlen(font_name) + 1;
 	WCHAR * wtext = (WCHAR*)alloca(len * sizeof(WCHAR));
@@ -365,7 +368,7 @@ void nf_free(nf_font_t font)
 
 int nf_print(void * bitmap, uint16_t w, uint16_t h,
 	nf_font_t font, nf_feature_t * features, size_t features_count,
-	nf_aabb_t * result_rect, const char * text, ...)
+	nf_aabb_t * result_rect, const char * text)
 {
 	if(!bitmap)
 	{

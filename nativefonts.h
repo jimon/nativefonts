@@ -153,8 +153,10 @@ void nf_free(nf_font_t font);
 // return < 0 on error
 int nf_print(
 	void * bitmap, uint16_t w, uint16_t h,
-	nf_font_t font, nf_feature_t * features, size_t features_count,
-	nf_aabb_t * result_rect, const char * text, ...);
+	nf_font_t font,
+	nf_feature_t * features, size_t features_count,
+	nf_aabb_t * result_rect,
+	const char * text);
 
 #ifdef __cplusplus
 }
